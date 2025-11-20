@@ -16,10 +16,10 @@ load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstati
 ```{r impart data}
 setwd('../Data/Develop')
 wd<-getwd()
-dataset_BOLD <- read.csv('BOLD_single_trial.csv',header=TRUE,sep=",")
-dataset_FC <- read.csv('FC_single_trial.csv',header=TRUE,sep=",")
-dataset_BINS <- read.csv('BINS_single_trial.csv',header=TRUE,sep=",")
-dataset_INS <- read.csv('INS_single_trial.csv',header=TRUE,sep=",")
+dataset_BOLD <- read.csv('BOLD_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_FC <- read.csv('FC_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_BINS <- read.csv('BINS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_INS <- read.csv('INS_single_trial_invest.csv',header=TRUE,sep=",")
 dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
 dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
 dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
