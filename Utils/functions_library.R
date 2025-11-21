@@ -9,7 +9,7 @@ load_packages <- function(pkgs) {
 }
 #===============================================================================
 ## Function1: extract_win_or_pay_mean
-extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,combine_or_separate, previous_or_current, show_pay_trialN, permute_or_not){
+extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_trialN){
   df_feature$Agood = rep(NaN, nrow(df_feature))
   df_feature$Abad = rep(NaN, nrow(df_feature))
   df_feature_Trial = df_feature[,grepl('R', colnames(df_feature))]
@@ -17,22 +17,12 @@ extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,combine_o
   df_y_pay_Trial = df_y[,grepl('_pay', colnames(df_y))]
 
   for (n in c(1:nrow(df_y))){
-    if (permute_or_not == TRUE){
-      IndexWin = sample(df_y_win_Trial[n,]) == 1
-      IndexLose = sample(df_y_win_Trial[n,]) == 0
-    }else{
-      IndexWin = df_y_win_Trial[n,] == 1
-      IndexLose = df_y_win_Trial[n,] == 0
-    }
+    IndexWin = df_y_win_Trial[n,] == 1
+    IndexLose = df_y_win_Trial[n,] == 0
     
     if (win_or_pay == "win"){
-      if (previous_or_current == "current"){
-        IndexGood = IndexWin
-        IndexBad = IndexLose
-      }else if (previous_or_current == "previous"){
-        IndexGood = IndexWin[2:length(IndexWin)]
-        IndexBad = IndexLose[2:length(IndexLose)]
-      }
+      IndexGood = IndexWin
+      IndexBad = IndexLose
     }else if (win_or_pay == "pay-control"){
       IndexGood_Win = IndexWin & (df_y_pay_Trial[n,] > median(as.numeric(df_y_pay_Trial[n,IndexWin])))
       IndexGood_Lose = IndexLose & (df_y_pay_Trial[n,] > median(as.numeric(df_y_pay_Trial[n,IndexLose])))
@@ -56,23 +46,14 @@ extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,combine_o
     TrialGood = df_feature_Trial[df_y$n[n] == df_feature$n, IndexGood]
     TrialBad = df_feature_Trial[df_y$n[n] == df_feature$n, IndexBad]
     
-    if (previous_or_current == "current"){
-      if (is.null(ncol(TrialGood)) | is.null(ncol(TrialBad))){
-        next
-      }else if (ncol(TrialGood)>2 & ncol(TrialBad)>2){
-        df_feature$Agood[df_y$n[n] == df_feature$n] = rowMeans(TrialGood)
-        df_feature$Abad[df_y$n[n] == df_feature$n] = rowMeans(TrialBad)
-      }
-    }else if (previous_or_current == "previous"){
-      if (is.null(ncol(TrialGood)) | is.null(ncol(TrialBad))){
-        next
-      }else if (ncol(TrialGood)>1 & ncol(TrialBad)>1){
-        df_feature$Agood[df_y$n[n] == df_feature$n] = rowMeans(TrialGood)
-        df_feature$Abad[df_y$n[n] == df_feature$n] = rowMeans(TrialBad)
-      }
+    if (is.null(ncol(TrialGood)) | is.null(ncol(TrialBad))){
+      next
+    }else if (ncol(TrialGood)>2 & ncol(TrialBad)>2){
+      df_feature$Agood[df_y$n[n] == df_feature$n] = rowMeans(TrialGood)
+      df_feature$Abad[df_y$n[n] == df_feature$n] = rowMeans(TrialBad)
     }
   }
-  df_need_dcast = reorg_df(df_feature,feature,combine_or_separate)
+  df_need_dcast = reorg_df(df_feature,feature)
   return(df_need_dcast)
 }
 
@@ -400,7 +381,7 @@ extract_match_win_lose_mean <- function(df_feature,df_win,feature,combine_or_sep
 
 #===============================================================================
 ## Function10: reorg_df
-reorg_df <- function(df_feature,feature,combine_or_separate){
+reorg_df <- function(df_feature,feature){
   df_feature = na.omit(df_feature)
   df_feature_var = df_feature[,!grepl('R|Agood|Abad', colnames(df_feature))]
   for (c in 1:ncol(df_feature_var)){
@@ -435,8 +416,8 @@ reorg_df <- function(df_feature,feature,combine_or_separate){
       }
     }
   }
-  df_need = cbind(df_feature_var$n,df_feature_var$GenderM1,df_feature_var$RoleA1,df_feature_var$LeadL1,df_feature_var$CH,df_feature[,(ncol(df_feature)-1):ncol(df_feature)])
-  colnames(df_need) = c("n","GenderM1","RoleA1","LeadL1","CH","Agood","Abad")
+  df_need = cbind(df_feature_var$n,df_feature_var$RoleA1,df_feature_var$LeadL1,df_feature_var$CH,df_feature[,(ncol(df_feature)-1):ncol(df_feature)])
+  colnames(df_need) = c("n","RoleA1","LeadL1","CH","Agood","Abad")
   
   if (feature == "FC_"){
     df_need$CH = factor(df_need$CH, levels = c("conn_CH102","conn_CH105","conn_CH106","conn_CH108","conn_CH111","conn_CH112","conn_CH114","conn_CH302","conn_CH305","conn_CH306","conn_CH308","conn_CH311","conn_CH312","conn_CH314","conn_CH402","conn_CH405","conn_CH406","conn_CH408","conn_CH411","conn_CH412","conn_CH414","conn_CH702","conn_CH705","conn_CH706","conn_CH708","conn_CH711","conn_CH712","conn_CH714","conn_CH902","conn_CH905","conn_CH906","conn_CH908","conn_CH911","conn_CH912","conn_CH914","conn_CH1002","conn_CH1005","conn_CH1006","conn_CH1008","conn_CH1011","conn_CH1012","conn_CH1014","conn_CH1302","conn_CH1305","conn_CH1306","conn_CH1308","conn_CH1311","conn_CH1312","conn_CH1314"))
@@ -447,19 +428,9 @@ reorg_df <- function(df_feature,feature,combine_or_separate){
   df_need_good = df_need[,1:(ncol(df_need)-1)]
   df_need_bad = df_need[,c(1:(ncol(df_need)-2),ncol(df_need))]
   
-  if (combine_or_separate == "separate"){
-    df_need_good_dcast<-dcast(df_need_good, n + GenderM1 ~ RoleA1 + LeadL1 + CH)
-    df_need_bad_dcast<-dcast(df_need_bad, n + GenderM1 ~ RoleA1 + LeadL1 + CH)
-  }else if (combine_or_separate == "combine"){
-    if (feature == "INS_"){
-      df_need_good_dcast<-dcast(df_need_good, n + GenderM1 ~ RoleA1 + CH)
-      df_need_bad_dcast<-dcast(df_need_bad, n + GenderM1 ~ RoleA1 + CH)
-    }else if (feature == "BINS_"){
-      df_need_good_dcast<-dcast(df_need_good, n + GenderM1 ~ CH)
-      df_need_bad_dcast<-dcast(df_need_bad, n + GenderM1 ~ CH)
-    }
-  }
-  
+  df_need_good_dcast<-dcast(df_need_good, n ~ RoleA1 + LeadL1 + CH)
+  df_need_bad_dcast<-dcast(df_need_bad, n ~ RoleA1 + LeadL1 + CH)
+ 
   df_need_good_dcast$good_1 = rep(1,nrow(df_need_good_dcast))
   df_need_bad_dcast$good_1 = rep(0,nrow(df_need_bad_dcast))
   
