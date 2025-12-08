@@ -88,45 +88,6 @@ svm_cv_accuracy <- function(df,nfold,n_iter,auc_or_acc,koi){
     realMean = mean(accuracy_all[,1])
     return(realMean)
   }
-  else if (auc_or_acc == "acc_force"){
-    accuracy_all = data.frame()
-    for (i in 1:n_iter){
-      folds = svm_createFolds(df,nfold)
-      
-      cv = lapply(folds, function(x) { 
-        training_fold = df[-x, ] 
-        test_fold = df[x, ] 
-        test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-        training_fold[-1] = scale(training_fold[-1])
-        classifier = svm(formula = good_1 ~ .,
-                         data = training_fold,
-                         type = 'C-classification',
-                         kernel = koi,
-                         probability = TRUE)
-        correct = 0
-        total_pairs = nrow(test_fold)/2
-        for(p in 1:total_pairs){
-          prob1 = predict(classifier, newdata = test_fold[p, -1], probability = TRUE)
-          prob2 = predict(classifier, newdata = test_fold[p+total_pairs, -1], probability = TRUE)
-          prob1_matrix = attr(prob1,"probabilities")
-          prob2_matrix = attr(prob2,"probabilities")
-          
-          predicted_pair = ifelse(prob1_matrix[1] > prob2_matrix[1],1,0)
-          true_label_pair = test_fold[p,1]
-          if(predicted_pair == true_label_pair){
-            correct = correct + 1
-          }
-        }
-        
-        accuracy_force = correct/total_pairs
-        return(accuracy_force)
-        
-      })
-      accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
-    }
-    realMean = mean(accuracy_all[,1])
-    return(realMean)
-  }
   else if (auc_or_acc == "auc"){
     auc_data = data.frame(matrix(nrow = nrow(df), ncol = 0));
     folds = svm_createFolds(df,nfold)
@@ -941,4 +902,121 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
     permMean = rbind(permMean,mean(as.numeric(cv)))
   }
   return(permMean)
+}
+
+#===============================================================================
+## Function27: svm_cv_accuracy_optimized
+svm_cv_accuracy_optimized <- function(df, nfold, n_iter, koi) {
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  
+  df[,1] = factor(df[,1], levels = c(0, 1))
+  df = na.omit(df)
+  
+  params <- list(
+    C_range = 10^seq(-3, 3, length.out = 5),
+    gamma_range = 10^seq(-3, 3, length.out = 5)
+  )
+  
+  cat("使用的参数范围:\n")
+  cat("C:", params$C_range, "\n")
+  cat("γ:", params$gamma_range, "\n")
+  
+  accuracy_all = data.frame()
+  
+  for (i in 1:n_iter) {
+    setTxtProgressBar(pb, i)
+    folds = svm_createFolds(df, nfold)
+    
+    cv = lapply(folds, function(x) { 
+      training_fold = df[-x, ]
+      test_fold = df[x, ]
+      
+      # 数据标准化
+      test_fold[-1] = ind_scale(training_fold[-1], test_fold[-1])
+      training_fold[-1] = scale(training_fold[-1])
+      
+      # 参数调优
+      tune_grid = expand.grid(C = params$C_range, gamma = params$gamma_range)
+      best_accuracy = 0
+      best_params = list(C = 1, gamma = 1/ncol(training_fold[-1]))
+      
+      inner_folds = svm_createFolds(training_fold, nfold)
+      
+      for(j in 1:nrow(tune_grid)) {
+        inner_accuracies = numeric(length(inner_folds))
+        
+        for(k in 1:length(inner_folds)) {
+          inner_training = training_fold[-inner_folds[[k]], ]
+          inner_test = training_fold[inner_folds[[k]], ]
+          
+          inner_test[-1] = ind_scale(inner_training[-1], inner_test[-1])
+          inner_training[-1] = scale(inner_training[-1])
+          
+          inner_classifier = svm(
+            formula = good_1 ~ .,
+            data = inner_training,
+            type = 'C-classification',
+            kernel = koi,
+            cost = tune_grid$C[j],
+            gamma = tune_grid$gamma[j]
+          )
+          
+          inner_pred = predict(inner_classifier, newdata = inner_test[-1])
+          inner_cm = table(inner_test[, 1], inner_pred)
+          inner_accuracies[k] = (inner_cm[1,1] + inner_cm[2,2]) / 
+            sum(inner_cm)
+        }
+        
+        mean_inner_accuracy = mean(inner_accuracies)
+        
+        if(mean_inner_accuracy > best_accuracy) {
+          best_accuracy = mean_inner_accuracy
+          best_params = list(C = tune_grid$C[j], gamma = tune_grid$gamma[j])
+        }
+      }
+      
+      # 使用最佳参数训练最终模型
+      classifier = svm(
+        formula = good_1 ~ .,
+        data = training_fold,
+        type = 'C-classification',
+        kernel = koi,
+        cost = best_params$C,
+        gamma = best_params$gamma
+      )
+      
+      y_pred = predict(classifier, newdata = test_fold[-1])
+      cm = table(test_fold[, 1], y_pred)
+      accuracy_single = (cm[1,1] + cm[2,2]) / sum(cm)
+      
+      return(list(accuracy = accuracy_single, best_C = best_params$C, 
+                  best_gamma = best_params$gamma))
+    })
+    
+    accuracies = sapply(cv, function(x) x$accuracy)
+    best_Cs = sapply(cv, function(x) x$best_C)
+    best_gammas = sapply(cv, function(x) x$best_gamma)
+    
+    accuracy_all = rbind(accuracy_all, 
+                         data.frame(
+                           iteration = i,
+                           accuracy = mean(accuracies),
+                           mean_C = mean(best_Cs),
+                           mean_gamma = mean(best_gammas)
+                         ))
+  }
+  
+  realMean = mean(accuracy_all$accuracy)
+  cat("嵌套交叉验证完成！\n")
+  cat("平均准确率:", round(realMean, 4), "\n")
+  cat("平均最佳C参数:", round(mean(accuracy_all$mean_C), 4), "\n")
+  cat("平均最佳γ参数:", round(mean(accuracy_all$mean_gamma), 6), "\n")
+  
+  return(list(mean_accuracy = realMean, 
+              accuracy_details = accuracy_all,
+              parameter_ranges = params))
 }
