@@ -58,7 +58,21 @@ write.csv(acc_bold_fc$accuracy_details,file_name, row.names = FALSE)
 
 ### INS and BINS
 ```{r svm_invest_INS&BINS}
-acc_ins_bins = svm_cv_accuracy(data_INS_BINS_invest,5,100,"acc_single","radial")
+acc_ins_bins = svm_cv_accuracy_optimized(data_INS_BINS_invest,5,100,"acc_single","radial")
 print(acc_ins_bins)
+out_path = '/Users/xiaochunhan/Documents/Research/Projects/Brains_aligned_to_win/Supplement_analysis/S02_Hyperparameter_tuning'
+setwd(out_path)
+getwd()
+file_name = 'S02_Hyper_tune_inter-brain_model.csv'
+write.csv(acc_ins_bins$accuracy_details,file_name, row.names = FALSE)
+```
+
+```{r svm_invest_INS&BINS}
+out_path = '/Users/xiaochunhan/Documents/Research/Projects/Brains_aligned_to_win/Supplement_analysis/S02_Hyperparameter_tuning'
+setwd(out_path)
+getwd()
+file_name = 'S02_Hyper_tune_inter-brain_model.csv'
+acc_ins_bins = read.csv(file_name)
+t.test(acc_ins_bins$accuracy, mu = 0.9212)
 ```
 
