@@ -121,6 +121,35 @@ write.csv(acc_ins_bins$accuracy_details,file_name, row.names = FALSE)
 t.test(acc_ins_bins$accuracy_details$accuracy, mu = 0.5)
 ```
 
+## logistic_l1
+### All features
+```{r svm_invest_all}
+acc_all = nested_cv_classifier(data_all_invest,5,100,classifier_type = "logistic_l1",FALSE)
+print(acc_all)
+file_name = 'S02_Hyper_tune_full_model_logistic_l1.csv'
+write.csv(acc_all$accuracy_details,file_name, row.names = FALSE)
+t.test(acc_all$accuracy_details$accuracy, mu = 0.5)
+```
+
+
+### BOLD and FC
+```{r svm_invest_BOLD&FC}
+acc_bold_fc = nested_cv_classifier(data_BOLD_FC_invest,5,100,classifier_type = "logistic_l1",FALSE)
+print(acc_bold_fc)
+file_name = 'S02_Hyper_tune_intra-brain_model_logistic_l1.csv'
+write.csv(acc_bold_fc$accuracy_details,file_name, row.names = FALSE)
+t.test(acc_bold_fc$accuracy_details$accuracy, mu = 0.5)
+```
+
+### INS and BINS
+```{r svm_invest_all}
+acc_ins_bins = nested_cv_classifier(data_INS_BINS_invest,5,100,classifier_type = "logistic_l1",FALSE)
+print(acc_ins_bins)
+file_name = 'S02_Hyper_tune_inter-brain_model_logistic_l1.csv'
+write.csv(acc_ins_bins$accuracy_details,file_name, row.names = FALSE)
+t.test(acc_ins_bins$accuracy_details$accuracy, mu = 0.5)
+```
+
 ## linear_svm_l2
 ### All features
 ```{r svm_invest_all}

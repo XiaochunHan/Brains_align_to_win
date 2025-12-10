@@ -906,8 +906,7 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
 
 #===============================================================================
 ## Function27: nested_cv_classifier
-nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm", 
-                                 kernel_type = "radial") {
+nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm-rbf", permute_or_not) {
   
   pb <- txtProgressBar(min = 0, max = n_iter, style = 3, width = 50, char = "=")
   
@@ -915,8 +914,8 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
   df[,1] = factor(df[,1], levels = c(0, 1))
   df = na.omit(df)
   
-  # 设置参数范围
-  if (classifier_type == "svm") {
+  # 根据分类器类型设置参数范围
+  if (classifier_type == "svm-rbf") {
     params <- list(
       C_range = 10^seq(-3, 3, length.out = 7),
       gamma_range = 10^seq(-3, 3, length.out = 7)
@@ -927,15 +926,28 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
     
     # 根据分类器类型输出不同的消息
     switch(classifier_type,
-           "logistic_l2" = cat("使用L2正则化逻辑回归\n"),
-           "linear_svm_l2" = cat("使用L2正则化线性SVM\n"),
-           "linear_svm_l1" = cat("使用L1正则化线性SVM\n"),
+           "logistic_l2" = {
+             cat("使用L2正则化逻辑回归\n")
+             cat("正则化参数: L2\n")
+           },
+           "logistic_l1" = {  # 新增L1正则化逻辑回归
+             cat("使用L1正则化逻辑回归\n")
+             cat("正则化参数: L1\n")
+           },
+           "linear_svm_l2" = {
+             cat("使用L2正则化线性SVM\n")
+             cat("正则化参数: L2\n")
+           },
+           "linear_svm_l1" = {
+             cat("使用L1正则化线性SVM\n")
+             cat("正则化参数: L1\n")
+           },
            cat("使用", classifier_type, "分类器\n")
     )
   }
   
   cat("C参数范围:", params$C_range, "\n")
-  if (classifier_type == "svm") {
+  if (classifier_type == "svm-rbf") {
     cat("γ参数范围:", params$gamma_range, "\n")
   }
   
@@ -955,19 +967,25 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
       
       # 准备矩阵格式数据
       X_train = as.matrix(training_fold[, -1])
-      y_train = as.numeric(as.character(training_fold[, 1]))
+      if (permute_or_not){
+        y_train = as.numeric(as.character(training_fold[, 1]))
+        y_train = sample(y_train)
+      }else{
+        y_train = as.numeric(as.character(training_fold[, 1]))
+      }
+      
       X_test = as.matrix(test_fold[, -1])
       y_test = as.numeric(as.character(test_fold[, 1]))
       
-      if (classifier_type == "svm") {
+      if (classifier_type == "svm-rbf") {
         # 原始SVM（带核函数）
-        best_params = tune_svm(training_fold, params, nfold, kernel_type)
+        best_params = tune_svm(training_fold, params, nfold, "radial")
         
         classifier = svm(
           formula = good_1 ~ .,
           data = training_fold,
-          type = 'C-classification',
-          kernel = kernel_type,
+          type = "C-classification",
+          kernel = "radial",
           cost = best_params$C,
           gamma = best_params$gamma
         )
@@ -980,8 +998,8 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
                     best_gamma = best_params$gamma))
         
       } else if (classifier_type == "logistic_l2") {
-        # L2正则化逻辑回归（使用glmnet）
-        best_C = tune_glmnet_logistic(X_train, y_train, params$C_range, nfold)
+        # L2正则化逻辑回归
+        best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 0)
         
         # 训练最终模型
         model = glmnet(
@@ -989,20 +1007,40 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
           y = y_train,
           family = "binomial",
           alpha = 0,  # L2正则化
-          lambda = 1/best_C,  # 注意：这里lambda是标量
+          lambda = 1/best_C,
           standardize = FALSE
         )
         
-        # 预测概率
+        # 预测
         pred_prob = predict(model, newx = X_test, type = "response")
-        # 转换为类别预测
+        y_pred = ifelse(pred_prob > 0.5, 1, 0)
+        cm = table(y_test, y_pred)
+        
+        return(list(accuracy = sum(diag(cm))/sum(cm), best_C = best_C))
+        
+      } else if (classifier_type == "logistic_l1") {  # 新增L1正则化逻辑回归
+        # L1正则化逻辑回归
+        best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 1)
+        
+        # 训练最终模型
+        model = glmnet(
+          x = X_train,
+          y = y_train,
+          family = "binomial",
+          alpha = 1,  # L1正则化
+          lambda = 1/best_C,
+          standardize = FALSE
+        )
+        
+        # 预测
+        pred_prob = predict(model, newx = X_test, type = "response")
         y_pred = ifelse(pred_prob > 0.5, 1, 0)
         cm = table(y_test, y_pred)
         
         return(list(accuracy = sum(diag(cm))/sum(cm), best_C = best_C))
         
       } else if (classifier_type == "linear_svm_l2") {
-        # L2正则化线性SVM（使用LiblineaR）
+        # L2正则化线性SVM
         best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, 
                                 type = 1)  # type=1: L2正则化L2-loss SVM
         
@@ -1022,7 +1060,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
         return(list(accuracy = sum(diag(cm))/sum(cm), best_C = best_C))
         
       } else if (classifier_type == "linear_svm_l1") {
-        # L1正则化线性SVM（使用LiblineaR）
+        # L1正则化线性SVM
         best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, 
                                 type = 5)  # type=5: L1正则化L2-loss SVM
         
@@ -1042,7 +1080,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type = "svm",
         return(list(accuracy = sum(diag(cm))/sum(cm), best_C = best_C))
         
       } else {
-        stop("未知的分类器类型")
+        stop("未知的分类器类型。支持的类型: 'svm-rbf', 'logistic_l2', 'logistic_l1', 'linear_svm_l2', 'linear_svm_l1'")
       }
     })
     
@@ -1134,8 +1172,8 @@ tune_svm <- function(training_data, params, nfold, kernel_type) {
 
 #===============================================================================
 ## Function29: tune_glmnet
-# 辅助函数：调优glmnet参数（用于逻辑回归）
-tune_glmnet_logistic <- function(X_train, y_train, C_range, nfold) {
+# 通用化的glmnet调优函数（支持L1和L2正则化）
+tune_glmnet <- function(X_train, y_train, C_range, nfold, alpha) {
   best_accuracy = 0
   best_C = 1
   
@@ -1150,12 +1188,12 @@ tune_glmnet_logistic <- function(X_train, y_train, C_range, nfold) {
       test_indices = which(fold_indices == k, arr.ind = TRUE)
       train_indices = which(fold_indices != k, arr.ind = TRUE)
       
-      # 使用glmnet（非cv.glmnet）训练固定lambda的模型
+      # 使用glmnet训练固定lambda的模型
       model = glmnet(
         x = X_train[train_indices, ],
         y = y_train[train_indices],
         family = "binomial",
-        alpha = 0,  # L2正则化
+        alpha = alpha,  # L1或L2正则化
         lambda = 1/C_val,  # lambda = 1/C
         standardize = FALSE
       )
@@ -1181,7 +1219,7 @@ tune_glmnet_logistic <- function(X_train, y_train, C_range, nfold) {
 
 #===============================================================================
 ## Function30: tune_liblinear
-# 辅助函数：调优LiblineaR参数（用于线性SVM）
+# 辅助函数：调优LiblineaR参数
 tune_liblinear <- function(X_train, y_train, C_range, nfold, type) {
   best_accuracy = 0
   best_C = 1
