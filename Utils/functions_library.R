@@ -1365,3 +1365,64 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range) {
   
   return(p)
 }
+
+#===============================================================================
+## Function33: auc_boot_cv
+auc_boot_cv <- function(df,nfold,koi,nBoot){
+  
+  df[,1] = factor(df[,1], levels = c(0, 1)) 
+  df = na.omit(df) 
+  auc_data = data.frame(matrix(nrow = nrow(df), ncol = 0));
+  folds = svm_createFolds(df,nfold) 
+  
+  y_true_all <- c()
+  y_score_all <- c()
+  
+  cv = lapply(folds, function(x) { 
+    training_fold = df[-x, ] 
+    test_fold = df[x, ] 
+    test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1]) 
+    training_fold[-1] = scale(training_fold[-1]) 
+    
+    classifier = svm(formula = good_1 ~ ., 
+                     data = training_fold, 
+                     type = 'C-classification', 
+                     kernel = koi)
+    
+    y_pred = predict(classifier, newdata = test_fold[-1]) 
+    y_pred = factor(y_pred, ordered=TRUE) 
+    
+    return(list(test_fold[, 1], y_pred)) }) 
+  
+  auc_data$y_real = c(cv$Fold1[[1]],cv$Fold2[[1]],cv$Fold3[[1]],cv$Fold4[[1]],cv$Fold5[[1]]) 
+  auc_data$y_fit = c(cv$Fold1[[2]],cv$Fold2[[2]],cv$Fold3[[2]],cv$Fold4[[2]],cv$Fold5[[2]]) 
+  
+  roc_obj <- roc(auc_data$y_real, auc_data$y_fit, quiet = TRUE)
+  mean_auc <- as.numeric(auc(roc_obj))
+  
+  auc_boot <- numeric(nBoot)
+  N <- length(auc_data$y_real)
+  
+  for (b in 1:nBoot) {
+    idx <- sample(seq_len(N), size = N, replace = TRUE)
+    y_b <- auc_data$y_real[idx]
+    s_b <- auc_data$y_fit[idx]
+    
+    if (length(unique(y_b)) < 2) {
+      auc_boot[b] <- NA
+    } else {
+      auc_boot[b] <- as.numeric(auc(roc(y_b, s_b, quiet = TRUE)))
+    }
+  }
+  
+  auc_boot <- auc_boot[!is.na(auc_boot)]
+  CI95 <- quantile(auc_boot, c(0.025, 0.975))
+  
+  return(list(
+    mean_auc = mean_auc,
+    CI95 = CI95,
+    auc_boot = auc_boot,
+    y_true_all = auc_data$y_real,
+    y_score_all = auc_data$y_fit
+  ))
+  }
