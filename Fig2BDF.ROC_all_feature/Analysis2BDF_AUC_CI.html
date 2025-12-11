@@ -396,30 +396,39 @@ print(auc_all[c(1,2)])</code></pre>
 ## 
 ## $CI95
 ##      2.5%     97.5% 
-## 0.6180556 0.8371114</code></pre>
+## 0.6222992 0.8296738</code></pre>
 </div>
 <div id="bold-and-fc" class="section level3">
 <h3>BOLD and FC</h3>
 <pre class="r"><code>auc_bold_fc = auc_boot_cv(data_BOLD_FC_invest,5,&quot;radial&quot;,1000)
 print(auc_bold_fc[c(1,2)])</code></pre>
 <pre><code>## $mean_auc
-## [1] 0.5833333
+## [1] 0.5666667
 ## 
 ## $CI95
 ##      2.5%     97.5% 
-## 0.4627347 0.7000000</code></pre>
+## 0.4531091 0.6833597</code></pre>
 </div>
 <div id="ins-and-bins" class="section level3">
 <h3>INS and BINS</h3>
 <pre class="r"><code>auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,&quot;radial&quot;,1000)
 print(auc_ins_bins[c(1,2)])</code></pre>
 <pre><code>## $mean_auc
-## [1] 0.9166667
+## [1] 0.8833333
 ## 
 ## $CI95
-##     2.5%    97.5% 
-## 0.836695 0.980787</code></pre>
+##      2.5%     97.5% 
+## 0.7913754 0.9514524</code></pre>
 </div>
+</div>
+<div id="compare-model-performance" class="section level2">
+<h2>Compare model performance</h2>
+<pre class="r"><code>results &lt;- compare_svm_mcnemar(data_all_invest, data_BOLD_FC_invest, data_INS_BINS_invest)
+print(results)</code></pre>
+<pre><code>##   Model1 Model2 Statistic      P_value
+## 1   SVM1   SVM2  9.388889 0.0021830447
+## 2   SVM1   SVM3  3.125000 0.0770998717
+## 3   SVM2   SVM3 13.884615 0.0001943831</code></pre>
 </div>
 
 

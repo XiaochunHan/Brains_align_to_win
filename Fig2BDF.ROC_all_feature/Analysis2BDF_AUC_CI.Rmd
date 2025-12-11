@@ -51,3 +51,9 @@ print(auc_bold_fc[c(1,2)])
 auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000)
 print(auc_ins_bins[c(1,2)])
 ```
+
+## Compare model performance
+```{r compare_svm_mcnemar}
+results <- compare_svm_mcnemar(data_all_invest, data_BOLD_FC_invest, data_INS_BINS_invest)
+print(results)
+```

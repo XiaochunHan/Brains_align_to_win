@@ -1425,4 +1425,101 @@ auc_boot_cv <- function(df,nfold,koi,nBoot){
     y_true_all = auc_data$y_real,
     y_score_all = auc_data$y_fit
   ))
+}
+
+#===============================================================================
+## Function34: compare_svm_mcnemar
+compare_svm_mcnemar <- function(df1, df2, df3, nfold = 5) {
+
+  #-------------------------#
+  # Helper: run CV and get predictions
+  #-------------------------#
+  run_cv <- function(df, folds) {
+    df[,1] <- factor(df[,1], levels = c(0,1))
+    df <- na.omit(df)
+    
+    cv_res <- lapply(folds, function(x) {
+      train_df <- df[-x,]
+      test_df  <- df[x,]
+      
+      # scaling
+      test_df[-1]  <- ind_scale(train_df[-1], test_df[-1])
+      train_df[-1] <- scale(train_df[-1])
+      
+      # SVM classification
+      clf <- svm(good_1 ~ ., data=train_df, type="C-classification", kernel="radial")
+      y_pred <- predict(clf, newdata=test_df[-1])
+      
+      return(list(y_true = test_df[,1], y_pred = y_pred))
+    })
+    
+    # combine out-of-fold predictions
+    y_true_all <- unlist(lapply(cv_res, function(x) x$y_true))
+    y_pred_all <- unlist(lapply(cv_res, function(x) x$y_pred))
+    
+    return(list(y_true = y_true_all, y_pred = y_pred_all))
   }
+  
+  #-------------------------#
+  # Create same folds based on df1
+  #-------------------------#
+  df1[,1] <- factor(df1[,1], levels = c(0,1))
+  df1 <- na.omit(df1)
+  folds <- svm_createFolds(df1, nfold)
+  
+  #-------------------------#
+  # Run CV for each dataset
+  #-------------------------#
+  cv1 <- run_cv(df1, folds)
+  cv2 <- run_cv(df2, folds)
+  cv3 <- run_cv(df3, folds)
+  
+  y_real <- factor(cv1$y_true, levels = c(0,1))  # consistent true labels
+  
+  preds_list <- list(
+    SVM1 = cv1$y_pred,
+    SVM2 = cv2$y_pred,
+    SVM3 = cv3$y_pred
+  )
+  
+  model_names <- names(preds_list)
+  n_models <- length(preds_list)
+  
+  #-------------------------#
+  # Perform McNemar tests
+  #-------------------------#
+  results <- data.frame(
+    Model1 = character(),
+    Model2 = character(),
+    Statistic = numeric(),
+    P_value = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (i in 1:(n_models - 1)) {
+    for (j in (i + 1):n_models) {
+      pred1 <- factor(preds_list[[i]], levels=c(0,1))
+      pred2 <- factor(preds_list[[j]], levels=c(0,1))
+      
+      correct1 <- pred1 == y_real
+      correct2 <- pred2 == y_real
+      
+      tbl <- table(correct1, correct2)
+      
+      test_res <- mcnemar.test(tbl, correct=TRUE)
+      
+      results <- rbind(
+        results,
+        data.frame(
+          Model1 = model_names[i],
+          Model2 = model_names[j],
+          Statistic = unname(test_res$statistic),
+          P_value = test_res$p.value
+        )
+      )
+    }
+  }
+  
+  return(results)
+}
+
