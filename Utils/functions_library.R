@@ -945,7 +945,8 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
 
 #===============================================================================
 ## Function27: nested_cv_classifier
-nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_not) {
+nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_not, n_bootstrap = 1000, ci_level = 0.95) {
+  # 添加了 n_bootstrap 和 ci_level 参数
   
   pb <- txtProgressBar(min = 0, max = n_iter, style = 3, width = 50, char = "=")
   
@@ -969,7 +970,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
              cat("使用L2正则化逻辑回归\n")
              cat("正则化参数: L2\n")
            },
-           "logistic_l1" = {  # 新增L1正则化逻辑回归
+           "logistic_l1" = {
              cat("使用L1正则化逻辑回归\n")
              cat("正则化参数: L1\n")
            },
@@ -1005,7 +1006,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
       # 数据标准化
       test_fold[-1] = ind_scale(training_fold[-1], test_fold[-1])
       training_fold[-1] = scale(training_fold[-1])
-
+      
       if (permute_or_not){
         training_fold$good_1 = sample(factor(training_fold$good_1, levels = c(0, 1)))
       }
@@ -1033,14 +1034,14 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
         y_pred = predict(classifier, newdata = test_fold[-1])
         y_pred_num = as.numeric(as.character(y_pred))
         y_test_num = as.numeric(as.character(test_fold[,1]))
-
+        
         cm = table(test_fold[, 1], y_pred)
         
         return(list(accuracy = sum(diag(cm))/sum(cm), 
                     best_C = best_params$C, 
-                    best_gamma = best_params$gamma),
+                    best_gamma = best_params$gamma,
                     y_true = y_test_num,
-                    y_pred = y_pred_num)
+                    y_pred = y_pred_num))
         
       } else if (classifier_type == "logistic_l2") {
         # L2正则化逻辑回归
@@ -1061,9 +1062,12 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
         y_pred = ifelse(pred_prob > 0.5, 1, 0)
         cm = table(y_test, y_pred)
         
-        return(list(accuracy = sum(diag(cm))/sum(cm), best_C = best_C))
+        return(list(accuracy = sum(diag(cm))/sum(cm), 
+                    best_C = best_C,
+                    y_true = y_test,
+                    y_pred = y_pred))
         
-      } else if (classifier_type == "logistic_l1") {  # 新增L1正则化逻辑回归
+      } else if (classifier_type == "logistic_l1") {
         # L1正则化逻辑回归
         best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 1)
         
@@ -1134,14 +1138,14 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
                     y_pred = y_pred))
         
       } else {
-        stop("未知的分类器类型。支持的类型: 'svm', 'logistic_l2', 'logistic_l1', 'linear_svm_l2', 'linear_svm_l1'")
+        stop("未知的分类器类型。支持的类型: 'svm-rbf', 'logistic_l2', 'logistic_l1', 'linear_svm_l2', 'linear_svm_l1'")
       }
     })
     
     # 收集结果
     accuracies = sapply(cv, function(x) x$accuracy)
     best_Cs = sapply(cv, function(x) x$best_C)
-
+    
     for (fold_result in cv) {
       all_y_true <- c(all_y_true, fold_result$y_true)
       all_y_pred <- c(all_y_pred, fold_result$y_pred)
@@ -1172,24 +1176,36 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
   cat("平均准确率:", round(realMean, 4), "\n")
   cat("平均最佳C参数:", round(mean(accuracy_all$mean_C), 4), "\n")
   
-  if (classifier_type == "svm") {
+  if (classifier_type == "svm-rbf") {
     cat("平均最佳γ参数:", round(mean(accuracy_all$mean_gamma), 6), "\n")
   }
-
+  
+  # 初始化置信区间变量
+  ci_method_used <- "None"
+  ci_lower <- NA
+  ci_upper <- NA
+  bootstrap_mean <- NA
+  
   if (length(all_y_true) > 0 && length(all_y_pred) > 0) {
-    # 使用您的函数格式计算准确率置信区间
+    
+    # 使用函数计算准确率置信区间
     bootstrap_result <- acc_95CI(
       y_true_all = all_y_true,
-      y_pred_all = all_y_pred,
+      y_score_all = all_y_pred,
       nBoot = n_bootstrap
     )
     
-    ci_lower <- bootstrap_result$ci[1]
-    ci_upper <- bootstrap_result$ci[2]
-    bootstrap_mean <- bootstrap_result$mean
-    
-    ci_method_used <- "Bootstrap (acc_95CI)"
+    ci_lower <- bootstrap_result[1]
+    ci_upper <- bootstrap_result[2]
+    bootstrap_mean <- mean(all_y_true == all_y_pred)
+    ci_method_used <- "Bootstrap"
   } 
+  
+  cat("\n置信区间 (", ci_level*100, "%):\n", sep="")
+  cat("方法:", ci_method_used, "\n")
+  cat("下限:", round(ci_lower, 4), "\n")
+  cat("均值:", round(realMean, 4), "\n")
+  cat("上限:", round(ci_upper, 4), "\n")
   
   return(list(
     mean_accuracy = realMean, 
@@ -1202,6 +1218,10 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
       ci_upper = ci_upper,
       ci_level = ci_level,
       bootstrap_mean = bootstrap_mean
+    ),
+    prediction_data = list(
+      y_true = all_y_true,
+      y_pred = all_y_pred
     )
   ))
 }
