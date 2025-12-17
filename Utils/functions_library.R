@@ -59,77 +59,14 @@ extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_
 
 #===============================================================================
 ## Function2: svm_cv_accuracy
-svm_cv_accuracy <- function(df,nfold,n_iter,auc_or_acc,koi){
+svm_cv_accuracy <- function(df,nfold,n_iter,koi){
   df[,1] = factor(df[,1], levels = c(0, 1))
   df = na.omit(df)
   
-  if (auc_or_acc == "acc_single"){
-    accuracy_all = data.frame()
-    for (i in 1:n_iter){
-      folds = svm_createFolds(df,nfold)
-      
-      cv = lapply(folds, function(x) { 
-        training_fold = df[-x, ] 
-        test_fold = df[x, ] 
-        test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-        training_fold[-1] = scale(training_fold[-1])
-        classifier = svm(formula = good_1 ~ .,
-                         data = training_fold,
-                         type = 'C-classification',
-                         kernel = koi)
-        y_pred = predict(classifier, newdata = test_fold[-1])
-        cm = table(test_fold[, 1], y_pred)
-        accuracy_single = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-        
-        return(accuracy_single)
-      })
-      accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
-    }
-    realMean = mean(accuracy_all[,1])
-    return(realMean)
-  }
-  else if (auc_or_acc == "acc_force"){
-    accuracy_all = data.frame()
-    for (i in 1:n_iter){
-      folds = svm_createFolds(df,nfold)
-      
-      cv = lapply(folds, function(x) { 
-        training_fold = df[-x, ] 
-        test_fold = df[x, ] 
-        test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-        training_fold[-1] = scale(training_fold[-1])
-        classifier = svm(formula = good_1 ~ .,
-                         data = training_fold,
-                         type = 'C-classification',
-                         kernel = koi,
-                         probability = TRUE)
-        correct = 0
-        total_pairs = nrow(test_fold)/2
-        for(p in 1:total_pairs){
-          prob1 = predict(classifier, newdata = test_fold[p, -1], probability = TRUE)
-          prob2 = predict(classifier, newdata = test_fold[p+total_pairs, -1], probability = TRUE)
-          prob1_matrix = attr(prob1,"probabilities")
-          prob2_matrix = attr(prob2,"probabilities")
-          
-          predicted_pair = ifelse(prob1_matrix[1] > prob2_matrix[1],1,0)
-          true_label_pair = test_fold[p,1]
-          if(predicted_pair == true_label_pair){
-            correct = correct + 1
-          }
-        }
-        
-        accuracy_force = correct/total_pairs
-        return(accuracy_force)
-        
-      })
-      accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
-    }
-    realMean = mean(accuracy_all[,1])
-    return(realMean)
-  }
-  else if (auc_or_acc == "auc"){
-    auc_data = data.frame(matrix(nrow = nrow(df), ncol = 0));
+  accuracy_all = data.frame()
+  for (i in 1:n_iter){
     folds = svm_createFolds(df,nfold)
+    
     cv = lapply(folds, function(x) { 
       training_fold = df[-x, ] 
       test_fold = df[x, ] 
@@ -140,13 +77,15 @@ svm_cv_accuracy <- function(df,nfold,n_iter,auc_or_acc,koi){
                        type = 'C-classification',
                        kernel = koi)
       y_pred = predict(classifier, newdata = test_fold[-1])
-      y_pred = factor(y_pred, ordered=TRUE)
-      return(list(test_fold[, 1], y_pred))
+      cm = table(test_fold[, 1], y_pred)
+      accuracy_single = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+      
+      return(accuracy_single)
     })
-    auc_data$y_real = c(cv$Fold1[[1]],cv$Fold2[[1]],cv$Fold3[[1]],cv$Fold4[[1]],cv$Fold5[[1]])
-    auc_data$y_fit = c(cv$Fold1[[2]],cv$Fold2[[2]],cv$Fold3[[2]],cv$Fold4[[2]],cv$Fold5[[2]])
-    return(auc_data)
+    accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
   }
+  realMean = mean(accuracy_all[,1])
+  return(realMean)
 }
 
 #===============================================================================

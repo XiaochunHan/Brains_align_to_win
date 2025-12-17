@@ -1,0 +1,110 @@
+---
+title: "Analysis2CEG_Permutation_test"
+author: "Xiaochun Han"
+date: "2025-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+source("../utils/functions_library.R")
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","pROC"))
+```
+
+## Import data
+```{r impart data, eval=FALSE}
+setwd('../Data/Develop')
+wd<-getwd()
+dataset_BOLD <- read.csv('BOLD_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_FC <- read.csv('FC_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_BINS <- read.csv('BINS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_INS <- read.csv('INS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
+dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
+dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
+
+BOLD_mean = extract_win_or_pay_mean(dataset_BOLD,dataset_y_attack,"BOLD_","win",FALSE)
+FC_mean = extract_win_or_pay_mean(dataset_FC,dataset_y_attack,"FC_","win",FALSE)
+INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE)
+BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE)
+data_all_invest = cbind(BOLD_mean[,c(1,4:ncol(BOLD_mean))],FC_mean[,4:ncol(FC_mean)],INS_mean[,4:ncol(INS_mean)],BINS_mean[,4:ncol(BINS_mean)])
+data_all_invest_rev = data_all_invest[rev(rownames(data_all_invest)),]
+data_all_invest_both = as.matrix(data_all_invest_rev[,2:ncol(data_all_invest_rev)])
+
+data_INS_BINS_invest = cbind(INS_mean[,c(1,4:ncol(INS_mean))],BINS_mean[,4:ncol(BINS_mean)])
+data_BOLD_FC_invest = cbind(BOLD_mean[,c(1,4:ncol(BOLD_mean))],FC_mean[,4:ncol(FC_mean)])
+
+data_WNS_invest = INS_mean[,c(1,4:ncol(INS_mean))]
+data_BNS_invest = BINS_mean[,c(1,4:ncol(BINS_mean))]
+data_BOLD_invest = BOLD_mean[,c(1,4:ncol(BOLD_mean))]
+data_FC_invest = FC_mean[,c(1,4:ncol(FC_mean))]
+
+data_minus_WNS_invest = cbind(BINS_mean[,c(1,4:ncol(BINS_mean))],BOLD_mean[,4:ncol(BOLD_mean)],FC_mean[,4:ncol(FC_mean)])
+data_minus_BNS_invest = cbind(INS_mean[,c(1,4:ncol(INS_mean))],BOLD_mean[,4:ncol(BOLD_mean)],FC_mean[,4:ncol(FC_mean)])
+data_minus_BOLD_invest = cbind(INS_mean[,c(1,4:ncol(INS_mean))],BINS_mean[,4:ncol(BINS_mean)],FC_mean[,4:ncol(FC_mean)])
+data_minus_FC_invest = cbind(INS_mean[,c(1,4:ncol(INS_mean))],BINS_mean[,4:ncol(BINS_mean)],BOLD_mean[,4:ncol(BOLD_mean)])
+```
+
+
+## Permutation Test
+```{r permute_test, eval=FALSE}
+acc_all_perm = svm_perm(data_all_invest,5,5000,"radial")
+acc_ins_bins_perm = svm_perm(data_INS_BINS_invest,5,5000,"radial")
+acc_bold_fc_perm = svm_perm(data_BOLD_FC_invest,5,5000,"radial")
+```
+
+### Full Model
+```{r permute_all}
+acc_all_perm = readRDS("SVM_win_all_perm_5000.RData")
+acc_all_low_25 = sort(acc_all_perm$acc_perm)[125]
+acc_all_top_25 = sort(acc_all_perm$acc_perm)[4875]
+acc_all_perm$ci95 = rep(0,5000)
+acc_all_perm$ci95[(acc_all_perm$acc_perm<acc_all_low_25|acc_all_perm$acc_perm>acc_all_top_25)] = 1
+acc_all = 0.7618
+p_all_perm = mean(acc_all<acc_all_perm$acc_perm)
+
+p<-ggplot(acc_all_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#000000"))+
+    geom_vline(aes(xintercept = acc_all), color = "#000000", linewidth = 1.5) + theme_classic()+xlim(0,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+### Inter-Brain Model
+```{r permute_INS&BINS}
+acc_wns_bns_perm = readRDS("SVM_win_INS_BINS_perm_5000.RData")
+acc_low_25 = sort(acc_wns_bns_perm$acc_perm)[125]
+acc_top_25 = sort(acc_wns_bns_perm$acc_perm)[4875]
+acc_wns_bns_perm$ci95 = rep(0,5000)
+acc_wns_bns_perm$ci95[(acc_wns_bns_perm$acc_perm<acc_low_25|acc_wns_bns_perm$acc_perm>acc_top_25)] = 1
+acc_wns_bns = 0.9212
+p_wns_bns_perm = mean(acc_wns_bns<acc_wns_bns_perm$acc_perm)
+
+p<-ggplot(acc_wns_bns_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#B095C6"))+
+    geom_vline(aes(xintercept = acc_wns_bns), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+
+### Intra-Brain Model
+```{r svm_invest_BOLD&FC}
+acc_bold_fc_perm = readRDS("SVM_win_BOLD_FC_perm_5000.RData")
+acc_low_25 = sort(acc_bold_fc_perm$acc_perm)[125]
+acc_top_25 = sort(acc_bold_fc_perm$acc_perm)[4875]
+acc_bold_fc_perm$ci95 = rep(0,5000)
+acc_bold_fc_perm$ci95[(acc_bold_fc_perm$acc_perm<acc_low_25|acc_bold_fc_perm$acc_perm>acc_top_25)] = 1
+acc_bold_fc = 0.5823
+p_bold_fc_perm = mean(acc_bold_fc<acc_bold_fc_perm$acc_perm)
+
+p<-ggplot(acc_bold_fc_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#969796"))+
+    geom_vline(aes(xintercept = acc_bold_fc), color = "#969796", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
