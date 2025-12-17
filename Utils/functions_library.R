@@ -1402,6 +1402,9 @@ tune_sensitive <- function(df, params, nfold) {
   rownames(accuracy_matrix) <- params$C_range
   colnames(accuracy_matrix) <- params$gamma_range
   
+  # 新增：初始化存储每个fold准确率的列表
+  fold_accuracy_list <- vector("list", nrow(tune_grid))
+  
   best_accuracy = 0
   best_params = list(C = 1, gamma = 1/ncol(df[-1]))
   
@@ -1432,6 +1435,14 @@ tune_sensitive <- function(df, params, nfold) {
       accuracies[k] = sum(diag(cm)) / sum(cm)
     }
     
+    # 新增：存储当前参数组合下每个fold的准确率
+    fold_accuracy_list[[j]] <- list(
+      C = tune_grid$C[j],
+      gamma = tune_grid$gamma[j],
+      fold_accuracies = accuracies,
+      mean_accuracy = mean(accuracies)
+    )
+    
     mean_accuracy = mean(accuracies)
     
     # 记录当前参数组合的准确率到矩阵中
@@ -1449,20 +1460,19 @@ tune_sensitive <- function(df, params, nfold) {
   cat("每种C-γ组合的交叉验证准确率:\n")
   print(round(accuracy_matrix, 4))
   
-  # 绘制热图
-  draw_accuracy_heatmap(accuracy_matrix, params$C_range, params$gamma_range)
-  
   return(list(
     best_params = best_params, 
     best_accuracy = best_accuracy,
-    accuracy_matrix = accuracy_matrix
+    accuracy_matrix = accuracy_matrix,
+    # 新增：返回每个fold的详细准确率
+    fold_accuracy_details = fold_accuracy_list
   ))
 }
 
 #===============================================================================
 ## Function34: draw_accuracy_heatmap
 # 绘制准确率热图的函数
-draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range) {
+draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range, figname) {
   
   # 将矩阵转换为长格式数据框
   accuracy_df <- as.data.frame(accuracy_matrix)
@@ -1479,8 +1489,8 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range) {
   p <- ggplot(accuracy_melted, aes(x = factor(gamma), y = factor(C), fill = accuracy)) +
     geom_tile(color = "white") +
     scale_fill_gradient2(low = "#4575B4", mid = "#FFFFBF",high = "#D73027", 
-                         midpoint = 0.75,
-                         limits = c(0.5,1)) +
+                         midpoint = 0.65,
+                         limits = c(0.3,1)) +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           plot.title = element_text(hjust = 0.5),
@@ -1489,8 +1499,8 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range) {
   print(p)
   
   # 保存热图
-  ggsave("svm_parameter_tuning_heatmap.png", p, width = 10, height = 8, dpi = 300)
-  cat("热图已保存为 'svm_parameter_tuning_heatmap.png'\n")
+  ggsave(figname, p, width = 10, height = 8, dpi = 300)
+  cat("热图已保存为", figname, "\n")
   
   return(p)
 }
@@ -1650,4 +1660,87 @@ compare_svm_mcnemar <- function(df1, df2, df3, nfold = 5) {
   }
   
   return(results)
+}
+
+#===============================================================================
+## Function37: prepare_anova_data
+prepare_anova_data <- function(result) {
+  # 从结果中提取fold级别的详细准确率数据
+  fold_details <- result$fold_accuracy_details
+  
+  # 创建空的数据框来存储所有fold的数据
+  anova_data <- data.frame(
+    C = numeric(0),
+    gamma = numeric(0),
+    accuracy = numeric(0),
+    fold = numeric(0)
+  )
+  
+  # 遍历每个参数组合，提取每个fold的准确率
+  for (i in 1:length(fold_details)) {
+    combo <- fold_details[[i]]
+    fold_accuracies <- combo$fold_accuracies
+    
+    for (j in 1:length(fold_accuracies)) {
+      new_row <- data.frame(
+        C = combo$C,
+        gamma = combo$gamma,
+        accuracy = fold_accuracies[j],
+        fold = j
+      )
+      anova_data <- rbind(anova_data, new_row)
+    }
+  }
+  
+  # 将C和gamma转换为因子变量，便于ANOVA分析
+  anova_data$C_factor <- as.factor(anova_data$C)
+  anova_data$gamma_factor <- as.factor(anova_data$gamma)
+  
+  return(anova_data)
+}
+
+#===============================================================================
+## Function38: perform_tuning_anova
+perform_tuning_anova <- function(anova_data) {
+  # 双因素ANOVA：分析C和gamma的主效应及交互效应
+  anova_model <- aov(accuracy ~ C_factor * gamma_factor, data = anova_data)
+  
+  cat("=== SVM参数对准确率影响的ANOVA分析结果 ===\n\n")
+  
+  # 显示ANOVA摘要表
+  cat("1. 方差分析表:\n")
+  anova_summary <- summary(anova_model)
+  print(anova_summary)
+  
+  # 检查方差齐性（Levene检验）
+  cat("\n2. 方差齐性检验:\n")
+  levene_test <- car::leveneTest(accuracy ~ interaction(C_factor, gamma_factor), 
+                                 data = anova_data)
+  print(levene_test)
+  
+  # 残差正态性检验（Shapiro-Wilk检验）
+  cat("\n3. 残差正态性检验:\n")
+  residuals <- residuals(anova_model)
+  shapiro_test <- shapiro.test(residuals)
+  print(shapiro_test)
+  
+  # 效应大小计算（eta平方）
+  cat("\n4. 效应大小分析:\n")
+  ss <- summary(anova_model)[[1]]["Sum Sq"]
+  total_ss <- sum(ss)
+  eta_sq <- ss / total_ss
+  
+  eta_results <- data.frame(
+    Effect = rownames(ss),
+    Eta_Squared = round(eta_sq, 4)
+  )
+  print(eta_results)
+  
+  return(list(
+    anova_model = anova_model,
+    anova_summary = anova_summary,
+    levene_test = levene_test,
+    shapiro_test = shapiro_test,
+    eta_squared = eta_results
+  ))
 }

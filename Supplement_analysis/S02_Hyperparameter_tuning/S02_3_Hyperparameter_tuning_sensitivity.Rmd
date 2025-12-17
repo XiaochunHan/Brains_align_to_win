@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 source("../../utils/functions_library.R")
-load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix", "glmnet", "LiblineaR","psych","ggplot2","reshape2"))
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix", "glmnet", "LiblineaR","psych","ggplot2","reshape2","car"))
 basedir = '/Users/xiaochunhan/Documents/Research/Projects/Brains_aligned_to_win/Supplement_analysis/S02_Hyperparameter_tuning'
 ```
 
@@ -43,16 +43,25 @@ params <- list(
 )
 
 result <- tune_sensitive(data_all_invest, params, nfold = 5)
+
+draw_accuracy_heatmap(result$accuracy_matrix, params$C_range, params$gamma_range, 'svm_parameter_tuning_heatmap_full-model.png')
+
+data_reorg = prepare_anova_data(result)
+perform_tuning_anova(data_reorg)
 ```
 
 ### BOLD and FC
 ```{r svm_rbf_all1}
-result <- tune_sensitive(data_BOLD_FC_invest, params, nfold = 5)
+result2 <- tune_sensitive(data_BOLD_FC_invest, params, nfold = 5)
+data_reorg2 = prepare_anova_data(result2)
+perform_tuning_anova(data_reorg2)
 ```
 
 ### INS and BINS
 ```{r svm_rbf_all1}
-result <- tune_sensitive(data_INS_BINS_invest, params, nfold = 5)
+result3 <- tune_sensitive(data_INS_BINS_invest, params, nfold = 5)
+data_reorg3 = prepare_anova_data(result3)
+perform_tuning_anova(data_reorg3)
 ```
 
 ```{r svm_rbf_INS&BINS2}
