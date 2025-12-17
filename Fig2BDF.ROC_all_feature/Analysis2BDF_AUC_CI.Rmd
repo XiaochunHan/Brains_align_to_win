@@ -36,24 +36,39 @@ data_BOLD_FC_invest = cbind(BOLD_mean[,c(1,4:ncol(BOLD_mean))],FC_mean[,4:ncol(F
 ## Predicting win vs. lose
 ### All features
 ```{r svm_invest_all}
-auc_all = auc_boot_cv(data_all_invest,5,"radial",1000)
-print(auc_all[c(1,2)])
+auc_all = auc_boot_cv(data_all_invest,5,"radial",1000,TRUE,'#000000')
 ```
 
 ### BOLD and FC
 ```{r svm_invest_BOLD&FC}
-auc_bold_fc = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000)
-print(auc_bold_fc[c(1,2)])
+auc_bold_fc = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000,TRUE,'#ACACAC')
 ```
 
 ### INS and BINS
 ```{r svm_invest_INS&BINS}
-auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000)
-print(auc_ins_bins[c(1,2)])
+auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000,TRUE,'#AD91C4')
 ```
 
 ## Compare model performance
+### DeLong test with AUC
+```{r compare_models_delong}
+score_list <- list(
+  SVM_all   = auc_all$y_score_all,
+  SVM_intra   = auc_bold_fc$y_score_all,
+  SVM_inter  = auc_ins_bins$y_score_all
+)
+
+delong_results <- compare_models_delong(
+  y_true = auc_all$y_true_all,
+  score_list = score_list
+)
+
+print(delong_results)
+```
+
+### McNemar test with prediction accuracy
 ```{r compare_svm_mcnemar}
-results <- compare_svm_mcnemar(data_all_invest, data_BOLD_FC_invest, data_INS_BINS_invest)
+results <- compare_models_mcnemar(data_all_invest, data_BOLD_FC_invest, data_INS_BINS_invest)
 print(results)
 ```
+

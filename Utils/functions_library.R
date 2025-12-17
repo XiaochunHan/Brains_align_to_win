@@ -1507,7 +1507,7 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range, figname
 
 #===============================================================================
 ## Function35: auc_boot_cv
-auc_boot_cv <- function(df,nfold,koi,nBoot){
+auc_boot_cv <- function(df,nfold,koi,nBoot,plotROC,cond_col){
   
   df[,1] = factor(df[,1], levels = c(0, 1)) 
   df = na.omit(df) 
@@ -1517,24 +1517,34 @@ auc_boot_cv <- function(df,nfold,koi,nBoot){
   y_true_all <- c()
   y_score_all <- c()
   
-  cv = lapply(folds, function(x) { 
-    training_fold = df[-x, ] 
-    test_fold = df[x, ] 
-    test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1]) 
-    training_fold[-1] = scale(training_fold[-1]) 
+  cv <- lapply(folds, function(x) { 
+    training_fold <- df[-x, ] 
+    test_fold     <- df[x, ] 
     
-    classifier = svm(formula = good_1 ~ ., 
-                     data = training_fold, 
-                     type = 'C-classification', 
-                     kernel = koi)
+    test_fold[-1]     <- ind_scale(training_fold[-1], test_fold[-1]) 
+    training_fold[-1] <- scale(training_fold[-1]) 
     
-    y_pred = predict(classifier, newdata = test_fold[-1]) 
-    y_pred = factor(y_pred, ordered=TRUE) 
+    classifier <- svm(
+      good_1 ~ .,
+      data = training_fold,
+      type = "C-classification",
+      kernel = koi,
+      probability = TRUE
+    )
     
-    return(list(test_fold[, 1], y_pred)) }) 
+    y_pred <- predict(classifier, test_fold[-1], probability = TRUE)
+    
+    prob_mat <- attr(y_pred, "probabilities")
+    score_1  <- prob_mat[, "1"]
+    
+    return(list(
+      y_true  = test_fold[, 1],
+      y_score = score_1
+    ))
+  })
   
-  auc_data$y_real = c(cv$Fold1[[1]],cv$Fold2[[1]],cv$Fold3[[1]],cv$Fold4[[1]],cv$Fold5[[1]]) 
-  auc_data$y_fit = c(cv$Fold1[[2]],cv$Fold2[[2]],cv$Fold3[[2]],cv$Fold4[[2]],cv$Fold5[[2]]) 
+  auc_data$y_real <- unlist(lapply(cv, `[[`, "y_true"))
+  auc_data$y_fit  <- unlist(lapply(cv, `[[`, "y_score"))
   
   roc_obj <- roc(auc_data$y_real, auc_data$y_fit, quiet = TRUE)
   mean_auc <- as.numeric(auc(roc_obj))
@@ -1557,6 +1567,30 @@ auc_boot_cv <- function(df,nfold,koi,nBoot){
   auc_boot <- auc_boot[!is.na(auc_boot)]
   CI95 <- quantile(auc_boot, c(0.025, 0.975))
   
+  if (plotROC) {
+    roc_smooth <- smooth(roc_obj, method = "binormal")
+    roc_df <- data.frame(
+      FPR = 1 - roc_smooth$specificities,
+      TPR = roc_smooth$sensitivities
+    )
+    
+    p <- ggplot(roc_df, aes(x = FPR, y = TPR)) +
+      geom_line(color = cond_col, linewidth = 1.2) +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
+      coord_equal() +
+      theme_classic(base_size = 14) +
+      labs(
+        title = "ROC curve (out-of-fold predictions)",
+        x = "False Positive Rate",
+        y = "True Positive Rate",
+        subtitle = sprintf(
+          "AUC = %.3f, 95%% CI [%.3f, %.3f]",
+          mean_auc, CI95[1], CI95[2]
+        )
+      )
+    print(p)
+  }
+  
   return(list(
     mean_auc = mean_auc,
     CI95 = CI95,
@@ -1567,8 +1601,58 @@ auc_boot_cv <- function(df,nfold,koi,nBoot){
 }
 
 #===============================================================================
-## Function36: compare_svm_mcnemar
-compare_svm_mcnemar <- function(df1, df2, df3, nfold = 5) {
+## Function36: compare_models_delong
+compare_models_delong <- function(y_true, score_list) {
+  # y_true: vector of true labels (0/1)
+  # score_list: named list of numeric prediction scores (probabilities)
+  
+  y_true <- factor(y_true, levels = c(0, 1))
+  
+  model_names <- names(score_list)
+  n_models <- length(score_list)
+  
+  results <- data.frame(
+    Model1 = character(),
+    Model2 = character(),
+    AUC1   = numeric(),
+    AUC2   = numeric(),
+    Statistic = numeric(),
+    P_value   = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (i in 1:(n_models - 1)) {
+    for (j in (i + 1):n_models) {
+      
+      roc1 <- pROC::roc(y_true, score_list[[i]], quiet = TRUE)
+      roc2 <- pROC::roc(y_true, score_list[[j]], quiet = TRUE)
+      
+      test_res <- pROC::roc.test(
+        roc1, roc2,
+        method = "delong",
+        paired = TRUE
+      )
+      
+      results <- rbind(
+        results,
+        data.frame(
+          Model1 = model_names[i],
+          Model2 = model_names[j],
+          AUC1   = as.numeric(pROC::auc(roc1)),
+          AUC2   = as.numeric(pROC::auc(roc2)),
+          Statistic = unname(test_res$statistic),
+          P_value   = test_res$p.value
+        )
+      )
+    }
+  }
+  
+  return(results)
+}
+
+#===============================================================================
+## Function37: compare_models_mcnemar
+compare_models_mcnemar <- function(df1, df2, df3, nfold = 5) {
   
   #-------------------------#
   # Helper: run CV and get predictions
@@ -1663,7 +1747,7 @@ compare_svm_mcnemar <- function(df1, df2, df3, nfold = 5) {
 }
 
 #===============================================================================
-## Function37: prepare_anova_data
+## Function38: prepare_anova_data
 prepare_anova_data <- function(result) {
   # 从结果中提取fold级别的详细准确率数据
   fold_details <- result$fold_accuracy_details
@@ -1700,7 +1784,7 @@ prepare_anova_data <- function(result) {
 }
 
 #===============================================================================
-## Function38: perform_tuning_anova
+## Function39: perform_tuning_anova
 perform_tuning_anova <- function(anova_data) {
   # 双因素ANOVA：分析C和gamma的主效应及交互效应
   anova_model <- aov(accuracy ~ C_factor * gamma_factor, data = anova_data)
