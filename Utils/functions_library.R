@@ -236,79 +236,7 @@ svm_general_accuracy_perm <- function(df1,df2,n_iter){
 }
 
 #===============================================================================
-## Function9: extract_match_win_lose_mean
-extract_match_win_lose_mean <- function(df_feature,df_win,feature,match_style){
-  
-  df_feature$Awin = rep(NaN, nrow(df_feature))
-  df_feature$Alose = rep(NaN, nrow(df_feature))
-  df_feature_Trial = df_feature[,grepl('R', colnames(df_feature))]
-  df_win_Trial = df_win[,grepl('_wl', colnames(df_win))]
-  
-  for (n in c(1:nrow(df_win))){
-    IndexWin = df_win_Trial[n,] == 1
-    IndexLose = df_win_Trial[n,] == 0
-    Nwin = sum(IndexWin)
-    Nlose = sum(IndexLose)
-    TrialWin = data.frame()
-    TrialLose = data.frame()
-    TrialWin = df_feature_Trial[df_win$n[n] == df_feature$n, IndexWin]
-    TrialLose = df_feature_Trial[df_win$n[n] == df_feature$n, IndexLose]
-    
-    if (Nwin > Nlose){
-      
-      if (match_style == "decrease"){
-        Rwin = sample(1:Nwin)
-        df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(TrialWin[,Rwin[1:Nlose]])
-        df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(TrialLose)
-      }else if (match_style == "increase"){
-        Rlose = sample(1:Nlose, Nwin-Nlose, replace = TRUE)
-        df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(cbind(TrialLose,TrialLose[,Rlose]))
-        df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(TrialWin)
-      }else{
-        Rlose = sample(1:Nlose, match_style, replace = TRUE)
-        Rwin = sample(1:Nwin, match_style, replace = TRUE)
-        #browser()
-        #cat(sprintf('n = %d, Rlose = %d, Rwin = %d.\n', df_win$n[n], Rlose, Rwin))
-        if (match_style == 1){
-          df_feature$Awin[df_win$n[n] == df_feature$n] = TrialWin[,Rwin]
-          df_feature$Alose[df_win$n[n] == df_feature$n] = TrialLose[,Rlose]
-        }else{
-          df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(TrialWin[,Rwin])
-          df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(TrialLose[,Rlose])
-        }
-      }
-      
-    }else{
-      if (match_style == "decrease"){
-        Rlose = sample(1:Nlose)
-        df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(TrialLose[,Rlose[1:Nwin]])
-        df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(TrialWin)
-      }else if (match_style == "increase"){
-        Rwin = sample(1:Nwin, Nlose-Nwin, replace = TRUE)
-        df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(cbind(TrialWin,TrialWin[,Rwin]))
-        df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(TrialLose)
-      }else{
-        Rlose = sample(1:Nlose, match_style, replace = TRUE)
-        Rwin = sample(1:Nwin, match_style, replace = TRUE)
-        #browser()
-        #cat(sprintf('n = %d, Rlose = %d, Rwin = %d.\n', df_win$n[n], Rlose, Rwin))
-        if (match_style == 1){
-          df_feature$Awin[df_win$n[n] == df_feature$n] = TrialWin[,Rwin]
-          df_feature$Alose[df_win$n[n] == df_feature$n] = TrialLose[,Rlose]
-        }else{
-          df_feature$Awin[df_win$n[n] == df_feature$n] = rowMeans(TrialWin[,Rwin])
-          df_feature$Alose[df_win$n[n] == df_feature$n] = rowMeans(TrialLose[,Rlose])
-        }
-      }
-    }
-  }
-  df_need_dcast = reorg_df(df_feature,feature)
-  return(df_need_dcast)
-}
-
-
-#===============================================================================
-## Function10: reorg_df
+## Function9: reorg_df
 reorg_df <- function(df_feature,feature){
   df_feature = na.omit(df_feature)
   df_feature_var = df_feature[,!grepl('R|Agood|Abad', colnames(df_feature))]
@@ -370,150 +298,7 @@ reorg_df <- function(df_feature,feature){
 }
 
 #===============================================================================
-## Function11: extract_pay_beh_mean
-extract_pay_beh_mean <- function(df_y,subID, type){
-  if ((subID == "all")&(type == "control")){
-    df_y$pay_high = rep(NaN, nrow(df_y))
-    df_y$pay_low = rep(NaN, nrow(df_y))
-    df_y$high = rep(NaN, nrow(df_y))
-    df_y$low = rep(NaN, nrow(df_y))
-    for (s in 1:nrow(df_y)){
-      pay = df_y[s, grepl('_pay', colnames(df_y))]
-      win = df_y[s, grepl('_wl', colnames(df_y))]
-      index_win = win==1
-      index_lose = win==0
-      median_win = median(as.numeric(pay[,index_win]))
-      median_lose = median(as.numeric(pay[,index_lose]))
-      index_high_win = index_win & (pay>median_win)
-      index_high_lose = index_lose & (pay>median_lose)
-      index_low_win = index_win & (pay<median_win)
-      index_low_lose = index_lose & (pay<median_lose)
-      index_high = index_high_win | index_high_lose
-      index_low = index_low_win | index_low_lose
-      trial_high = pay[,index_high]
-      trial_low = pay[,index_low]
-      if (is.null(ncol(trial_high)) | is.null(ncol(trial_low))){
-        next
-      }else if (ncol(trial_high)>2 & ncol(trial_low)>2){
-        df_y$pay_high[s] = rowMeans(trial_high)
-        df_y$pay_low[s] = rowMeans(trial_low)
-        df_y$high[s] = 1
-        df_y$low[s] = 0
-        df_y$n_high[s] = df_y$n[s]
-        df_y$n_low[s] = df_y$n[s]
-      }
-    }
-    df_pay_high = cbind(df_y$n_high, df_y$high, df_y$pay_high)
-    df_pay_low = cbind(df_y$n_low, df_y$low,df_y$pay_low)
-    df_pay = rbind(df_pay_high, df_pay_low)
-    df_pay = na.omit(df_pay)
-    colnames(df_pay) = c("subID", "pay_level", "beh_mean")
-    return(as.data.frame(df_pay))
-    
-  }else if((subID == "all")&(type == "non-control")){
-    df_y$pay_high = rep(NaN, nrow(df_y))
-    df_y$pay_low = rep(NaN, nrow(df_y))
-    df_y$high = rep(NaN, nrow(df_y))
-    df_y$low = rep(NaN, nrow(df_y))
-    for (s in 1:nrow(df_y)){
-      pay = df_y[s, grepl('_pay', colnames(df_y))]
-      median_all = median(as.numeric(pay))
-      index_high = pay > median_all
-      index_low = pay < median_all
-      trial_high = pay[,index_high]
-      trial_low = pay[,index_low]
-      if (is.null(ncol(trial_high)) | is.null(ncol(trial_low))){
-        next
-      }else if (ncol(trial_high)>2 & ncol(trial_low)>2){
-        df_y$pay_high[s] = rowMeans(trial_high)
-        df_y$pay_low[s] = rowMeans(trial_low)
-        df_y$high[s] = 1
-        df_y$low[s] = 0
-        df_y$n_high[s] = df_y$n[s]
-        df_y$n_low[s] = df_y$n[s]
-      }
-    }
-    df_pay_high = cbind(df_y$n_high, df_y$high, df_y$pay_high)
-    df_pay_low = cbind(df_y$n_low, df_y$low,df_y$pay_low)
-    df_pay = rbind(df_pay_high, df_pay_low)
-    df_pay = na.omit(df_pay)
-    colnames(df_pay) = c("subID", "pay_level", "beh_mean")
-    return(as.data.frame(df_pay))
-    
-  }else{
-    if (type == "control"){
-      pay = df_y[df_y$n == subID, grepl('_pay', colnames(df_y))]
-      win = df_y[df_y$n == subID, grepl('_wl', colnames(df_y))]
-      index_win = win==1
-      index_lose = win==0
-      median_win = median(as.numeric(pay[,index_win]))
-      median_lose = median(as.numeric(pay[,index_lose]))
-      median_all = median(as.numeric(pay))
-      index_high_win = index_win & (pay>median_win)
-      index_high_lose = index_lose & (pay>median_lose)
-      index_low_win = index_win & (pay<median_win)
-      index_low_lose = index_lose & (pay<median_lose)
-      index_high = index_high_win | index_high_lose
-      trial = 1:ncol(pay)
-      df_pay = data.frame(
-        pay = as.numeric(pay[1,]),
-        win = as.numeric(win[1,]),
-        high = as.numeric(index_high),
-        trial = trial
-      )
-      return(list(df_pay, median_win, median_lose, median_all))
-    }else if (type == "non-control"){
-      pay = df_y[df_y$n == subID, grepl('_pay', colnames(df_y))]
-      win = df_y[df_y$n == subID, grepl('_wl', colnames(df_y))]
-      median_all = median(as.numeric(pay))
-      index_high = pay > median_all
-      index_low = pay < median_all
-      trial = 1:ncol(pay)
-      df_pay = data.frame(
-        pay = as.numeric(pay[1,]),
-        win = as.numeric(win[1,]),
-        high = as.numeric(index_high),
-        trial = trial
-      )
-      return(list(df_pay, median_all))
-    }
-    
-  }
-}
-
-#===============================================================================
-## Function12: perm_t_independ
-perm_t_independ <- function(list_fi,fi_1,fi_2){
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = 5000, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-  dif <- vector(length = 5000)
-  list_fi_1 <- list_fi[[fi_1]][[2]]
-  list_fi_2 <- list_fi[[fi_2]][[2]]
-  fi_combine <- rbind(list_fi_1, list_fi_2)
-  fi_combine$feature <- rep(c(1,2), each = 5000)
-  
-  obs_dif <- diff(tapply(X = fi_combine$acc_perm,
-                         INDEX = fi_combine$feature,
-                         FUN = mean))
-  
-  for (i in 1:length(dif)){
-    setTxtProgressBar(pb, i)
-    fi_combine$feature <- sample(fi_combine$feature)
-    dif[i] <- diff(tapply(X = fi_combine$acc_perm,
-                          INDEX = fi_combine$feature,
-                          FUN = mean))
-  }
-  
-  p_two = mean(abs(dif) >= abs(obs_dif))
-  
-  return(list(obs_dif, dif, p_two))
-}
-
-#===============================================================================
-## Function13: track_regress
+## Function10: track_regress
 track_regress <- function(df_invest){
   df_invest_Trial = df_invest[,grepl('_inv', colnames(df_invest))]
   df_invest_Manip = df_invest[,!grepl('_inv', colnames(df_invest))]
@@ -564,48 +349,7 @@ track_regress <- function(df_invest){
 }
 
 #===============================================================================
-## Function14: extract_feature_all_trial_mean
-extract_feature_all_trial_mean <- function(df_brain, noi, AD, LF, CH){
-  df_feature = df_brain[(df_brain$role.A.1. == AD)&(df_brain$lead.L.LF.1. == LF)&(df_brain$CH.CH_pair == CH), ]
-  df_fit = df_feature %>% filter(n %in% noi)
-  df_fit_Trial = df_fit[,grepl('R', colnames(df_fit))]
-  df_fit_feature = df_fit[,!grepl('R', colnames(df_fit))]
-  df_fit_feature$Brain = rowMeans(df_fit_Trial)
-  df_fit_feature = df_fit_feature[,c(1, ncol(df_fit_feature))]
-  df_fit_feature_new = df_fit_feature[order(df_fit_feature$n),]
-  return(df_fit_feature_new)
-}
-
-#===============================================================================
-## Function15: compare_win_lose
-compare_win_lose <- function(df_winlose, AD, LF, CH_key){
-  df_feature = df_winlose[(df_winlose$role == AD)&(df_winlose$Lead == LF), grepl(CH_key, colnames(df_winlose))]
-  #browser()
-  df_feature_win = df_feature[, grepl('_win', colnames(df_feature))]
-  df_feature_lose = df_feature[, grepl('_lose', colnames(df_feature))]
-  df_feature_average = data.frame(cbind(rowMeans(df_feature_win),rowMeans(df_feature_lose)))
-  colnames(df_feature_average) = c("win","lose")
-  df_feature_stack = stack(df_feature_average)
-  t_param = t.test(values~ind, data = df_feature_stack, paired = TRUE, alternative = "two.sided")
-  d_param = cohens_d(values~ind, data = df_feature_stack, paired = TRUE)
-  m_param = df_feature_stack %>%
-    group_by(ind) %>%
-    get_summary_stats(values, type = "mean_sd")
-  #browser()
-  out_param = data.frame(mean_win = m_param$mean[1],
-                         sd_win = m_param$sd[1],
-                         mean_lose = m_param$mean[2],
-                         sd_lose = m_param$sd[2],
-                         t_win_lose = t_param$statistic[1],
-                         df = t_param$parameter[1],
-                         p_value = t_param$p.value,
-                         cohenD = d_param$effsize)
-  print(out_param)
-  return(out_param)
-}
-
-#===============================================================================
-## Function16: svm_lime
+## Function11: svm_lime
 svm_lime <- function(df1,df2,n_b,target_label,n_feat,select_method){
   df1$good_1[df1$good_1 == 1] <- 'yes'
   df1$good_1[df1$good_1 == 0] <- 'no'
@@ -625,184 +369,7 @@ svm_lime <- function(df1,df2,n_b,target_label,n_feat,select_method){
 }
 
 #===============================================================================
-## Function17: modified_lime_plot_explanations
-modified_lime_plot_explanations <- function (explanation, ...) 
-{
-  num_cases <- unique(suppressWarnings(as.numeric(explanation$case)))
-  if (!anyNA(num_cases)) {
-    explanation$case <- factor(explanation$case, levels = as.character(sort(num_cases)))
-  }
-  
-  p <- ggplot(explanation, aes_(~case, ~feature_desc)) + geom_tile(aes_(fill = ~feature_weight)) + 
-    scale_x_discrete("Case", expand = c(0, 0)) + scale_y_discrete("Feature", expand = c(0, 0)) + 
-    scale_fill_gradient2("Feature\nweight", low = "firebrick", mid = "#f7f7f7", high = "steelblue") + 
-    modified_theme_lime() + 
-    theme(panel.border = element_rect(fill = NA, colour = "grey60", size = 1), 
-          panel.grid = element_blank(), 
-          legend.position = "right", 
-          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
-  if (is.null(explanation$label)) {
-    p
-  }
-  else {
-    p + facet_wrap(~label, ...)
-  }
-}
-
-#===============================================================================
-## Function18: modified_theme_lime
-modified_theme_lime <- function(...) {
-  theme_minimal() +
-    theme(
-      strip.text = element_text(face = 'bold', size = 9),
-      plot.margin = margin(15, 15, 15, 15),
-      legend.background = element_blank(),
-      legend.key = element_blank(),
-      panel.grid.major.y = element_blank(),
-      panel.grid.minor.y = element_blank(),
-      axis.ticks = element_blank(),
-      legend.position = 'bottom',
-      panel.spacing.y = unit(15, 'pt'),
-      strip.text.x = element_text(margin = margin(t = 2, b = 2), hjust = 0),
-      axis.title.y = element_text(margin = margin(r = 10)),
-      axis.title.x = element_text(margin = margin(t = 10)),
-      ...
-    )
-}
-
-#===============================================================================
-## Function19: svm_ale
-svm_ale <- function(df,foi){
-  #df$good_1[df$good_1 == 1] <- 'yes'
-  #df$good_1[df$good_1 == 0] <- 'no'
-  #df$good_1 = factor(df$good_1, levels = c("no", "yes"))
-  training_fold = df
-  training_fold[-1] = scale(training_fold[-1])
-  classifier <- caret::train(good_1~., data=training_fold, method = 'svmRadial', tuneGrid = data.frame(C=1, sigma = 1/ncol(training_fold[-1])), trControl=trainControl(classProbs = TRUE, method = "none"))
-  #predictor <- Predictor$new(classifier, data = training_fold[-1], y = training_fold$good_1, type = "prob")
-  predictor <- Predictor$new(classifier, data = training_fold[-1], y = training_fold$good_1)
-  if (foi == "all"){
-    ale <- FeatureEffects$new(predictor)
-  }else{
-    ale <- FeatureEffect$new(predictor,feature = foi)
-  }
-  
-  return(ale)
-}
-
-#===============================================================================
-## Function20: ilm_feat_impor
-ilm_feat_impor <- function(df, n_perm){
-  training_fold = df
-  training_fold[-1] = scale(training_fold[-1])
-  classifier <- caret::train(good_1~., data=training_fold, method = 'svmRadial', tuneGrid = data.frame(C=1, sigma = 1/ncol(training_fold[-1])), trControl=trainControl(classProbs = TRUE, method = "none"))
-  predictor <- Predictor$new(classifier, data = training_fold[-1], y = training_fold$good_1)
-  imp <- FeatureImp$new(predictor, loss = "ce", compare = "difference", n.repetitions = n_perm)
-  return(imp)
-}
-
-#===============================================================================
-## Function21: svm_lime_imporfeat
-svm_lime_imporfeat <- function(df1,df2,n_b=2,target_label,n_feat,select_method){
-  df1$good_1[df1$good_1 == 1] <- 'yes'
-  df1$good_1[df1$good_1 == 0] <- 'no'
-  df1$good_1 = factor(df1$good_1, levels = c("no", "yes"))
-  training_fold = df1 
-  test_fold = df2 
-  #browser()
-  classifier <- train(good_1~., data=training_fold, method = 'svmRadial', tuneGrid = data.frame(C=1, sigma = 1/ncol(training_fold[-1])), trControl=trainControl(classProbs = TRUE, method = "none"))
-  explainer <- lime(x = training_fold[-1], model = classifier, n_bins = n_b)
-  explanation <- lime::explain(test_fold, explainer, labels = target_label, n_features = n_feat, feature_select = select_method)
-  
-  return(explanation)
-}
-
-#===============================================================================
-## Function22: svm_perm_trial
-svm_perm_trial <- function(df_BOLD,df_FC,df_WNS,df_BNS,df_y,foi,nfold,n_iter,koi){
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = n_iter, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-  
-  permACC = data.frame();
-  for (p in 1:n_iter){
-    setTxtProgressBar(pb, p)
-    BOLD_mean = extract_win_or_pay_mean(df_BOLD,df_y,"BOLD_","win","separate","current",FALSE,TRUE)
-    FC_mean = extract_win_or_pay_mean(df_FC,df_y,"FC_","win","separate","current",FALSE,TRUE)
-    WNS_mean = extract_win_or_pay_mean(df_WNS,df_y,"WNS_","win","separate","current",FALSE,TRUE)
-    BNS_mean = extract_win_or_pay_mean(df_BNS,df_y,"BNS_","win","separate","current",FALSE,TRUE)
-    if (foi == "all"){
-      data_invest = cbind(WNS_mean[,c(1,4:ncol(WNS_mean))],BNS_mean[,4:ncol(BNS_mean)],BOLD_mean[,4:ncol(BOLD_mean)],FC_mean[,4:ncol(FC_mean)])
-    }else if (foi == "intra"){
-      data_invest = cbind(BOLD_mean[,c(1,4:ncol(BOLD_mean))],FC_mean[,4:ncol(FC_mean)])
-    }else if (foi == "inter"){
-      data_invest = cbind(WNS_mean[,c(1,4:ncol(WNS_mean))],BNS_mean[,4:ncol(BNS_mean)])
-    }
-    acc = svm_cv_accuracy(data_invest,nfold,1,"acc","radial")
-    permACC = rbind(permACC,acc)
-  }
-  
-  return(permACC)
-}
-
-#===============================================================================
-## Function23: calc_win_trialN
-calc_win_trialN <- function(df_y){
-  df_y_win_Trial = df_y[,grepl('_wl', colnames(df_y))]
-  winTrialN = data.frame();
-  loseTrialN = data.frame();
-  for (n in c(1:nrow(df_y))){
-      IndexWin = df_y_win_Trial[n,] == 1
-      IndexLose = df_y_win_Trial[n,] == 0
-      winTrialN = rbind(winTrialN,sum(IndexWin))
-      loseTrialN = rbind(loseTrialN,sum(IndexLose))
-  }
-  colnames(winTrialN) = "winN"
-  colnames(loseTrialN) = "loseN"
-  trialN = data.frame(winTrialN, loseTrialN)
-  #browser()
-  cat(sprintf('win_mean = %f, win_sd = %f, lose_mean = %f, lose_sd = %f.\n', mean(winTrialN[,1]), sd(winTrialN[,1]), mean(loseTrialN[,1]), sd(loseTrialN[,1])))
-  return(trialN)
-}
-
-#===============================================================================
-## Function24: svm_cv_accuracy_distribution
-svm_cv_accuracy_distribution <- function(df,nfold,n_iter,koi){
-  df[,1] = factor(df[,1], levels = c(0, 1))
-  df = na.omit(df)
-  accuracy_all = data.frame()
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = n_iter, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-  for (i in 1:n_iter){
-    setTxtProgressBar(pb, i)
-    folds = svm_createFolds(df,nfold)
-    
-    cv = lapply(folds, function(x) { 
-      training_fold = df[-x, ] 
-      test_fold = df[x, ] 
-      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-      training_fold[-1] = scale(training_fold[-1])
-      classifier = svm(formula = good_1 ~ .,
-                       data = training_fold,
-                       type = 'C-classification',
-                       kernel = koi)
-      y_pred = predict(classifier, newdata = test_fold[-1])
-      cm = table(test_fold[, 1], y_pred)
-      accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-      return(accuracy)
-    })
-    accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
-  }
-  return(accuracy_all[,1])
-}
-
-#===============================================================================
-## Function25: lm_cv_correlation
+## Function12: lm_cv_correlation
 lm_cv_correlation <- function(df,nfold,n_iter,out_mat){
   df = na.omit(df)
   colnames(df)[1] = "y_value"
@@ -834,7 +401,7 @@ lm_cv_correlation <- function(df,nfold,n_iter,out_mat){
 }
 
 #===============================================================================
-## Function26: lm_perm
+## Function13: lm_perm
 lm_perm <- function(df,nfold,n_iter,out_mat){
   pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
                        max = n_iter, # Maximum value of the progress bar
@@ -856,7 +423,6 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
       training_fold$y_value = sample(training_fold$y_value)
       
       model = lm(formula = y_value ~ .,data = training_fold)
-      #browser()
       y_pred = predict(model, newdata = test_fold[-1])
       if(out_mat == 'r_value'){
         r_value = cor(test_fold$y_value, y_pred)
@@ -873,17 +439,14 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
 }
 
 #===============================================================================
-## Function27: nested_cv_classifier
+## Function14: nested_cv_classifier
 nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_not, n_bootstrap = 1000, ci_level = 0.95) {
-  # 添加了 n_bootstrap 和 ci_level 参数
   
   pb <- txtProgressBar(min = 0, max = n_iter, style = 3, width = 50, char = "=")
   
-  # 数据预处理
   df[,1] = factor(df[,1], levels = c(0, 1))
   df = na.omit(df)
   
-  # 根据分类器类型设置参数范围
   if (classifier_type == "svm-rbf") {
     params <- list(
       C_range = 2**seq(-5, 15, length.out = 10),
@@ -893,7 +456,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
   } else {
     params <- list(C_range = 2**seq(-5, 15, length.out = 10))
     
-    # 根据分类器类型输出不同的消息
     switch(classifier_type,
            "logistic_l2" = {
              cat("使用L2正则化逻辑回归\n")
@@ -932,7 +494,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
       training_fold = df[-x, ]
       test_fold = df[x, ]
       
-      # 数据标准化
       test_fold[-1] = ind_scale(training_fold[-1], test_fold[-1])
       training_fold[-1] = scale(training_fold[-1])
       
@@ -940,7 +501,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
         training_fold$good_1 = sample(factor(training_fold$good_1, levels = c(0, 1)))
       }
       
-      # 准备矩阵格式数据
       X_train = as.matrix(training_fold[, -1])
       y_train = as.numeric(as.character(training_fold[, 1]))
       
@@ -948,7 +508,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
       y_test = as.numeric(as.character(test_fold[, 1]))
       
       if (classifier_type == "svm-rbf") {
-        # 原始SVM（带核函数）
         best_params = tune_svm(training_fold, params, nfold)
         
         classifier = svm(
@@ -973,10 +532,8 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
                     y_pred = y_pred_num))
         
       } else if (classifier_type == "logistic_l2") {
-        # L2正则化逻辑回归
         best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 0)
         
-        # 训练最终模型
         model = glmnet(
           x = X_train,
           y = y_train,
@@ -986,7 +543,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
           standardize = FALSE
         )
         
-        # 预测
         pred_prob = predict(model, newx = X_test, type = "response")
         y_pred = ifelse(pred_prob > 0.5, 1, 0)
         cm = table(y_test, y_pred)
@@ -997,10 +553,8 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
                     y_pred = y_pred))
         
       } else if (classifier_type == "logistic_l1") {
-        # L1正则化逻辑回归
         best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 1)
         
-        # 训练最终模型
         model = glmnet(
           x = X_train,
           y = y_train,
@@ -1010,7 +564,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
           standardize = FALSE
         )
         
-        # 预测
         pred_prob = predict(model, newx = X_test, type = "response")
         y_pred = ifelse(pred_prob > 0.5, 1, 0)
         cm = table(y_test, y_pred)
@@ -1021,7 +574,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
                     y_pred = y_pred))
         
       } else if (classifier_type == "linear_svm_l2") {
-        # L2正则化线性SVM
         best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, 
                                 type = 1)  # type=1: L2正则化L2-loss SVM
         
@@ -1044,7 +596,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
                     y_pred = y_pred))
         
       } else if (classifier_type == "linear_svm_l1") {
-        # L1正则化线性SVM
         best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, 
                                 type = 5)  # type=5: L1正则化L2-loss SVM
         
@@ -1071,7 +622,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
       }
     })
     
-    # 收集结果
     accuracies = sapply(cv, function(x) x$accuracy)
     best_Cs = sapply(cv, function(x) x$best_C)
     
@@ -1102,7 +652,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
     }
   }
   
-  # 输出结果
   realMean = mean(accuracy_all$accuracy)
   cat("\n嵌套交叉验证完成！\n")
   cat("平均准确率:", round(realMean, 4), "\n")
@@ -1114,7 +663,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
     cat("标准差最佳γ参数:", round(mean(accuracy_all$std_gamma), 6), "\n")
   }
   
-  # 初始化置信区间变量
   ci_method_used <- "None"
   ci_lower <- NA
   ci_upper <- NA
@@ -1122,7 +670,6 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
   
   if (length(all_y_true) > 0 && length(all_y_pred) > 0) {
     
-    # 使用函数计算准确率置信区间
     bootstrap_result <- acc_95CI(
       y_true_all = all_y_true,
       y_score_all = all_y_pred,
@@ -1161,8 +708,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
 }
 
 #===============================================================================
-## Function28: tune_svm
-# 辅助函数：调优SVM参数
+## Function15: tune_svm
 tune_svm <- function(training_data, params, nfold) {
   tune_grid = expand.grid(C = params$C_range, gamma = params$gamma_range)
   best_accuracy = 0
@@ -1206,8 +752,7 @@ tune_svm <- function(training_data, params, nfold) {
 }
 
 #===============================================================================
-## Function29: tune_glmnet
-# 通用化的glmnet调优函数（支持L1和L2正则化）
+## Function16: tune_glmnet
 tune_glmnet <- function(X_train, y_train, C_range, nfold, alpha) {
   best_accuracy = 0
   best_C = 1
@@ -1253,8 +798,7 @@ tune_glmnet <- function(X_train, y_train, C_range, nfold, alpha) {
 }
 
 #===============================================================================
-## Function30: tune_liblinear
-# 辅助函数：调优LiblineaR参数
+## Function17: tune_liblinear
 tune_liblinear <- function(X_train, y_train, C_range, nfold, type) {
   best_accuracy = 0
   best_C = 1
@@ -1297,7 +841,7 @@ tune_liblinear <- function(X_train, y_train, C_range, nfold, type) {
 }
 
 #===============================================================================
-## Function32: acc_95CI
+## Function18: acc_95CI
 acc_95CI <- function(y_true_all, y_score_all, nBoot) {
   acc_boot <- numeric(nBoot)
   N <- length(y_true_all)
@@ -1307,9 +851,6 @@ acc_95CI <- function(y_true_all, y_score_all, nBoot) {
     y_b <- y_true_all[idx]
     s_b <- y_score_all[idx]
     
-    # 计算准确率（而不是AUC）
-    # 这里假设y_score_all是预测的类别（0/1）而不是概率
-    # 所以准确率就是预测正确的比例
     acc_boot[b] <- mean(y_b == s_b)
   }
   
@@ -1320,26 +861,22 @@ acc_95CI <- function(y_true_all, y_score_all, nBoot) {
 }
 
 #===============================================================================
-## Function33: tune_sensitive
+## Function19: tune_sensitive
 tune_sensitive <- function(df, params, nfold) {
-  # 创建参数网格
   tune_grid = expand.grid(C = params$C_range, gamma = params$gamma_range)
-  
-  # 初始化存储每种组合准确率的矩阵
+
   accuracy_matrix <- matrix(0, nrow = length(params$C_range), 
                             ncol = length(params$gamma_range))
   rownames(accuracy_matrix) <- params$C_range
   colnames(accuracy_matrix) <- params$gamma_range
-  
-  # 新增：初始化存储每个fold准确率的列表
+
   fold_accuracy_list <- vector("list", nrow(tune_grid))
   
   best_accuracy = 0
   best_params = list(C = 1, gamma = 1/ncol(df[-1]))
   
   folds = svm_createFolds(df, nfold)
-  
-  # 为每个参数组合计算准确率
+
   for(j in 1:nrow(tune_grid)) {
     accuracies = numeric(length(folds))
     
@@ -1363,8 +900,7 @@ tune_sensitive <- function(df, params, nfold) {
       cm = table(test[, 1], pred)
       accuracies[k] = sum(diag(cm)) / sum(cm)
     }
-    
-    # 新增：存储当前参数组合下每个fold的准确率
+
     fold_accuracy_list[[j]] <- list(
       C = tune_grid$C[j],
       gamma = tune_grid$gamma[j],
@@ -1373,8 +909,7 @@ tune_sensitive <- function(df, params, nfold) {
     )
     
     mean_accuracy = mean(accuracies)
-    
-    # 记录当前参数组合的准确率到矩阵中
+
     c_index <- which(params$C_range == tune_grid$C[j])
     gamma_index <- which(params$gamma_range == tune_grid$gamma[j])
     accuracy_matrix[c_index, gamma_index] <- mean_accuracy
@@ -1384,8 +919,7 @@ tune_sensitive <- function(df, params, nfold) {
       best_params = list(C = tune_grid$C[j], gamma = tune_grid$gamma[j])
     }
   }
-  
-  # 打印每种参数组合的准确率
+
   cat("每种C-γ组合的交叉验证准确率:\n")
   print(round(accuracy_matrix, 4))
   
@@ -1393,28 +927,22 @@ tune_sensitive <- function(df, params, nfold) {
     best_params = best_params, 
     best_accuracy = best_accuracy,
     accuracy_matrix = accuracy_matrix,
-    # 新增：返回每个fold的详细准确率
     fold_accuracy_details = fold_accuracy_list
   ))
 }
 
 #===============================================================================
-## Function34: draw_accuracy_heatmap
-# 绘制准确率热图的函数
+## Function20: draw_accuracy_heatmap
 draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range, figname) {
-  
-  # 将矩阵转换为长格式数据框
+
   accuracy_df <- as.data.frame(accuracy_matrix)
   colnames(accuracy_df) <- gamma_range
   accuracy_df$C <- c_range
-  
-  # 转换数据格式
+
   accuracy_melted <- melt(accuracy_df, id.vars = "C", 
                           variable.name = "gamma", value.name = "accuracy")
   accuracy_melted$gamma <- as.numeric(as.character(accuracy_melted$gamma))
   
-  
-  # 绘制热图
   p <- ggplot(accuracy_melted, aes(x = factor(gamma), y = factor(C), fill = accuracy)) +
     geom_tile(color = "white") +
     scale_fill_gradient2(low = "#4575B4", mid = "#FFFFBF",high = "#D73027", 
@@ -1426,8 +954,7 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range, figname
           plot.subtitle = element_text(hjust = 0.5))
   
   print(p)
-  
-  # 保存热图
+
   ggsave(figname, p, width = 10, height = 8, dpi = 300)
   cat("热图已保存为", figname, "\n")
   
@@ -1435,7 +962,7 @@ draw_accuracy_heatmap <- function(accuracy_matrix, c_range, gamma_range, figname
 }
 
 #===============================================================================
-## Function35: auc_boot_cv
+## Function21: auc_boot_cv
 auc_boot_cv <- function(df,nfold,koi,nBoot,plotROC,cond_col){
   
   df[,1] = factor(df[,1], levels = c(0, 1)) 
@@ -1530,10 +1057,8 @@ auc_boot_cv <- function(df,nfold,koi,nBoot,plotROC,cond_col){
 }
 
 #===============================================================================
-## Function36: compare_models_delong
+## Function22: compare_models_delong
 compare_models_delong <- function(y_true, score_list) {
-  # y_true: vector of true labels (0/1)
-  # score_list: named list of numeric prediction scores (probabilities)
   
   y_true <- factor(y_true, levels = c(0, 1))
   
@@ -1580,12 +1105,9 @@ compare_models_delong <- function(y_true, score_list) {
 }
 
 #===============================================================================
-## Function37: compare_models_mcnemar
+## Function23: compare_models_mcnemar
 compare_models_mcnemar <- function(df1, df2, df3, nfold = 5) {
-  
-  #-------------------------#
-  # Helper: run CV and get predictions
-  #-------------------------#
+
   run_cv <- function(df, folds) {
     df[,1] <- factor(df[,1], levels = c(0,1))
     df <- na.omit(df)
@@ -1605,23 +1127,16 @@ compare_models_mcnemar <- function(df1, df2, df3, nfold = 5) {
       return(list(y_true = test_df[,1], y_pred = y_pred))
     })
     
-    # combine out-of-fold predictions
     y_true_all <- unlist(lapply(cv_res, function(x) x$y_true))
     y_pred_all <- unlist(lapply(cv_res, function(x) x$y_pred))
     
     return(list(y_true = y_true_all, y_pred = y_pred_all))
   }
   
-  #-------------------------#
-  # Create same folds based on df1
-  #-------------------------#
   df1[,1] <- factor(df1[,1], levels = c(0,1))
   df1 <- na.omit(df1)
   folds <- svm_createFolds(df1, nfold)
   
-  #-------------------------#
-  # Run CV for each dataset
-  #-------------------------#
   cv1 <- run_cv(df1, folds)
   cv2 <- run_cv(df2, folds)
   cv3 <- run_cv(df3, folds)
@@ -1637,9 +1152,6 @@ compare_models_mcnemar <- function(df1, df2, df3, nfold = 5) {
   model_names <- names(preds_list)
   n_models <- length(preds_list)
   
-  #-------------------------#
-  # Perform McNemar tests
-  #-------------------------#
   results <- data.frame(
     Model1 = character(),
     Model2 = character(),
@@ -1676,12 +1188,10 @@ compare_models_mcnemar <- function(df1, df2, df3, nfold = 5) {
 }
 
 #===============================================================================
-## Function38: prepare_anova_data
+## Function24: prepare_anova_data
 prepare_anova_data <- function(result) {
-  # 从结果中提取fold级别的详细准确率数据
   fold_details <- result$fold_accuracy_details
   
-  # 创建空的数据框来存储所有fold的数据
   anova_data <- data.frame(
     C = numeric(0),
     gamma = numeric(0),
@@ -1689,7 +1199,6 @@ prepare_anova_data <- function(result) {
     fold = numeric(0)
   )
   
-  # 遍历每个参数组合，提取每个fold的准确率
   for (i in 1:length(fold_details)) {
     combo <- fold_details[[i]]
     fold_accuracies <- combo$fold_accuracies
@@ -1705,7 +1214,6 @@ prepare_anova_data <- function(result) {
     }
   }
   
-  # 将C和gamma转换为因子变量，便于ANOVA分析
   anova_data$C_factor <- as.factor(anova_data$C)
   anova_data$gamma_factor <- as.factor(anova_data$gamma)
   
@@ -1713,31 +1221,26 @@ prepare_anova_data <- function(result) {
 }
 
 #===============================================================================
-## Function39: perform_tuning_anova
+## Function25: perform_tuning_anova
 perform_tuning_anova <- function(anova_data) {
-  # 双因素ANOVA：分析C和gamma的主效应及交互效应
   anova_model <- aov(accuracy ~ C_factor * gamma_factor, data = anova_data)
   
   cat("=== SVM参数对准确率影响的ANOVA分析结果 ===\n\n")
   
-  # 显示ANOVA摘要表
   cat("1. 方差分析表:\n")
   anova_summary <- summary(anova_model)
   print(anova_summary)
   
-  # 检查方差齐性（Levene检验）
   cat("\n2. 方差齐性检验:\n")
   levene_test <- car::leveneTest(accuracy ~ interaction(C_factor, gamma_factor), 
                                  data = anova_data)
   print(levene_test)
   
-  # 残差正态性检验（Shapiro-Wilk检验）
   cat("\n3. 残差正态性检验:\n")
   residuals <- residuals(anova_model)
   shapiro_test <- shapiro.test(residuals)
   print(shapiro_test)
   
-  # 效应大小计算（eta平方）
   cat("\n4. 效应大小分析:\n")
   ss <- summary(anova_model)[[1]]["Sum Sq"]
   total_ss <- sum(ss)
@@ -1759,31 +1262,25 @@ perform_tuning_anova <- function(anova_data) {
 }
 
 #===============================================================================
-## Function40: svm_general_auc
+## Function26: svm_general_auc
 svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, cond_col = "blue") {
   
-  # 确保标签为因子且水平一致[1,4](@ref)
   train_df[,1] <- factor(train_df[,1], levels = c(0, 1))
   test_df[,1] <- factor(test_df[,1], levels = c(0, 1))
   
-  # 移除缺失值[1](@ref)
   train_df <- na.omit(train_df)
   test_df <- na.omit(test_df)
   
-  # 数据标准化：使用训练集参数标准化测试集[2,8](@ref)
   train_scaled <- train_df
   test_scaled <- test_df
   
-  # 标准化训练集
   train_scaled[-1] <- scale(train_df[-1])
   
-  # 使用训练集的均值和标准差标准化测试集[2](@ref)
   if(ncol(train_df) > 1 && nrow(train_df) > 0) {
     train_means <- apply(train_df[-1], 2, mean, na.rm = TRUE)
     train_sds <- apply(train_df[-1], 2, sd, na.rm = TRUE)
     
-    # 避免除零错误
-    zero_sd <- which(train_sds == 0)
+     zero_sd <- which(train_sds == 0)
     if(length(zero_sd) > 0) {
       train_sds[zero_sd] <- 1  # 对于标准差为0的变量，设置为1避免除零
     }
@@ -1791,7 +1288,6 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
     test_scaled[-1] <- scale(test_df[-1], center = train_means, scale = train_sds)
   }
   
-  # 训练SVM模型[8](@ref)
   classifier <- svm(
     good_1 ~ .,
     data = train_scaled,
@@ -1800,17 +1296,14 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
     probability = TRUE
   )
   
-  # 在测试集上进行预测[1,4](@ref)
   y_pred <- predict(classifier, test_scaled[-1], probability = TRUE)
   prob_mat <- attr(y_pred, "probabilities")
   y_score <- prob_mat[, "1"]
   y_true <- test_scaled[, 1]
-  
-  # 计算AUC[1,4](@ref)
+ 
   roc_obj <- roc(y_true, y_score, quiet = TRUE)
   mean_auc <- as.numeric(auc(roc_obj))
   
-  # Bootstrap计算置信区间[1](@ref)
   auc_boot <- numeric(nBoot)
   N <- length(y_true)
   
@@ -1828,8 +1321,7 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
   
   auc_boot <- auc_boot[!is.na(auc_boot)]
   CI95 <- quantile(auc_boot, c(0.025, 0.975))
-  
-  # 绘制ROC曲线[4,6](@ref)
+ 
   if (plotROC) {
     roc_smooth <- smooth(roc_obj, method = "binormal")
     roc_df <- data.frame(
@@ -1854,7 +1346,6 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
     print(p)
   }
   
-  # 返回结果[1](@ref)
   return(list(
     mean_auc = mean_auc,
     CI95 = CI95,
