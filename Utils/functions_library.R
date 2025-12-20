@@ -199,9 +199,39 @@ svm_general_accuracy <- function(df1,df2){
   y_pred = predict(classifier, newdata = test_fold[-1])
   cm = table(test_fold[, 1], y_pred)
   accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-  return(accuracy)
+  ci_level = acc_95CI(test_fold[, 1], y_pred,1000)
+  
+  ci_lower <- ci_level[1]
+  ci_upper <- ci_level[2]
+  ci_method_used <- "Bootstrap"
+
+  cat("均值:", round(accuracy, 4), "\n")
+  cat("下限:", round(ci_lower, 4), "\n")
+  cat("上限:", round(ci_upper, 4), "\n")
+  cat("方法:", ci_method_used, "\n")
+  return(list(accuracy,
+              ci_level))
 }
 
+#===============================================================================
+## Function8: acc_95CI
+acc_95CI <- function(y_true_all, y_score_all, nBoot) {
+  acc_boot <- numeric(nBoot)
+  N <- length(y_true_all)
+  
+  for (b in 1:nBoot) {
+    idx <- sample(seq_len(N), size = N, replace = TRUE)
+    y_b <- y_true_all[idx]
+    s_b <- y_score_all[idx]
+    
+    acc_boot[b] <- mean(y_b == s_b)
+  }
+  
+  acc_boot <- acc_boot[!is.na(acc_boot)]
+  CI95 <- quantile(acc_boot, c(0.025, 0.975))
+  
+  return(CI95)
+}
 #===============================================================================
 ## Function8: svm_general_accuracy_perm
 svm_general_accuracy_perm <- function(df1,df2,n_iter){
@@ -838,26 +868,6 @@ tune_liblinear <- function(X_train, y_train, C_range, nfold, type) {
   }
   
   return(best_C)
-}
-
-#===============================================================================
-## Function18: acc_95CI
-acc_95CI <- function(y_true_all, y_score_all, nBoot) {
-  acc_boot <- numeric(nBoot)
-  N <- length(y_true_all)
-  
-  for (b in 1:nBoot) {
-    idx <- sample(seq_len(N), size = N, replace = TRUE)
-    y_b <- y_true_all[idx]
-    s_b <- y_score_all[idx]
-    
-    acc_boot[b] <- mean(y_b == s_b)
-  }
-  
-  acc_boot <- acc_boot[!is.na(acc_boot)]
-  CI95 <- quantile(acc_boot, c(0.025, 0.975))
-  
-  return(CI95)
 }
 
 #===============================================================================
