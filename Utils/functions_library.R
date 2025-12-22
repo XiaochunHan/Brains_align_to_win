@@ -379,20 +379,14 @@ track_regress <- function(df_invest){
 
 #===============================================================================
 ## Function12: svm_lime
-svm_lime <- function(df1,df2,n_b,target_label,n_feat,select_method){
-  df1$good_1[df1$good_1 == 1] <- 'yes'
-  df1$good_1[df1$good_1 == 0] <- 'no'
-  df2$good_1[df2$good_1 == 1] <- 'yes'
-  df2$good_1[df2$good_1 == 0] <- 'no'
-  df1$good_1 = factor(df1$good_1, levels = c("no", "yes"))
-  df2$good_1 = factor(df2$good_1, levels = c("no", "yes"))
-  training_fold = df1 
-  test_fold = df2 
-  test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-  training_fold[-1] = scale(training_fold[-1])
-  classifier <- train(good_1~., data=training_fold, method = 'svmRadial', tuneGrid = data.frame(C=1, sigma = 1/ncol(training_fold[-1])), trControl=trainControl(classProbs = TRUE, method = "none"))
-  explainer <- lime(x = training_fold[-1], model = classifier, n_bins = n_b)
-  explanation <- lime::explain(test_fold[-1], explainer, labels = target_label, n_features = n_feat, feature_select = select_method)
+svm_lime <- function(df,n_b,target_label,n_feat,select_method){
+  df$good_1[df$good_1 == 1] <- 'yes'
+  df$good_1[df$good_1 == 0] <- 'no'
+  df$good_1 = factor(df$good_1, levels = c("no", "yes"))
+  df[-1] = scale(df[-1])
+  classifier <- train(good_1~., data=df, method = 'svmRadial', tuneGrid = data.frame(C=1, sigma = 1/ncol(training_fold[-1])), trControl=trainControl(classProbs = TRUE, method = "none"))
+  explainer <- lime(x = df[-1], model = classifier, n_bins = n_b)
+  explanation <- lime::explain(df[-1], explainer, labels = target_label, n_features = n_feat, feature_select = select_method)
   
   return(explanation)
 }

@@ -194,7 +194,7 @@ print(p)
 data_WNS_BNS_invest_selected = data_WNS_BNS_invest %>%
   select(c(any_of(as.character(filtered_fi$name)), "good_1")) %>%
   relocate("good_1", .before = 1)
-weight = svm_lime(data_WNS_BNS_invest_selected,data_WNS_BNS_invest_selected,2,"yes",14,"none")
+weight = svm_lime(data_WNS_BNS_invest_selected,2,"yes",14,"none")
 ```
 
 ### figure
