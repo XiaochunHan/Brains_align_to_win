@@ -58,215 +58,7 @@ extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_
 }
 
 #===============================================================================
-## Function2: svm_cv_accuracy
-svm_cv_accuracy <- function(df,nfold,n_iter,koi){
-  df[,1] = factor(df[,1], levels = c(0, 1))
-  df = na.omit(df)
-  
-  accuracy_all = data.frame()
-  for (i in 1:n_iter){
-    folds = svm_createFolds(df,nfold)
-    
-    cv = lapply(folds, function(x) { 
-      training_fold = df[-x, ] 
-      test_fold = df[x, ] 
-      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-      training_fold[-1] = scale(training_fold[-1])
-      classifier = svm(formula = good_1 ~ .,
-                       data = training_fold,
-                       type = 'C-classification',
-                       kernel = koi)
-      y_pred = predict(classifier, newdata = test_fold[-1])
-      cm = table(test_fold[, 1], y_pred)
-      accuracy_single = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-      
-      return(accuracy_single)
-    })
-    accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
-  }
-  realMean = mean(accuracy_all[,1])
-  return(realMean)
-}
-
-#===============================================================================
-## Function3: svm_createFolds
-svm_createFolds <- function(df,nfold){
-  df[,1] = as.factor(df[,1])
-  df_y<-df[df[,1] == 1,]
-  n = nrow(df_y)
-  folds = createFolds(df_y[,1], k = nfold)
-  folds_2 = lapply(folds, function(x) {
-    x_2 = c(x,x+n)
-    return(x_2)
-  })
-  return(folds_2)
-}
-
-#===============================================================================
-## Function4: ind_scale
-ind_scale <- function(df1,df2){
-  df1_mean = sapply(df1, mean)
-  df1_sd = sapply(df1, sd)
-  df2_scale = df2
-  for (c in 1:length(df1_mean)){
-    df2_scale[,c] = (df2[,c] - df1_mean[c])/df1_sd[c]
-  }
-  return(df2_scale)
-}
-
-#===============================================================================
-## Function5: svm_perm
-svm_perm <- function(df,nfold,n_iter,koi){
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = n_iter, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-
-  permMean = data.frame();
-  for (p in 1:n_iter){
-    setTxtProgressBar(pb, p)
-    folds = svm_createFolds(df,nfold)
-    cv = lapply(folds, function(x) { 
-      training_fold = df[-x, ] 
-      test_fold = df[x, ] 
-      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-      training_fold[-1] = scale(training_fold[-1])
-
-      training_fold$good_1 = sample(factor(training_fold$good_1, levels = c(0, 1)))
-      classifier = svm(formula = good_1 ~ .,
-                       data = training_fold,
-                       type = 'C-classification',
-                       kernel = koi)
-      y_pred = predict(classifier, newdata = test_fold[-1])
-      cm = table(test_fold[, 1], y_pred)
-      accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-      return(accuracy)
-    })
-    permMean = rbind(permMean,mean(as.numeric(cv)))
-  }
-  return(permMean)
-}
-
-#===============================================================================
-## Function6: svm_feat_impor
-svm_feat_impor <- function(df,feat,nfold,nCV,nPerm){
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = nPerm, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-  df_perm = df
-  acc_perm = data.frame();
-  for (i in 1:nPerm){
-    setTxtProgressBar(pb, i)
-    df_perm[,grepl(feat, colnames(df_perm))] = df_perm[sample(1:nrow(df_perm)),grepl(feat, colnames(df_perm))]
-    df_perm$good_1 = factor(df_perm$good_1, levels = c(0, 1))
-    folds = svm_createFolds(df_perm,nfold)
-    cv = lapply(folds, function(x) { 
-      training_fold = df_perm[-x, ] 
-      test_fold = df_perm[x, ] 
-      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-      training_fold[-1] = scale(training_fold[-1])
-      classifier = svm(formula = good_1 ~ .,
-                       data = training_fold,
-                       type = 'C-classification',
-                       kernel = 'radial')
-      y_pred = predict(classifier, newdata = test_fold[-1])
-      cm = table(test_fold[, 1], y_pred)
-      accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-      return(accuracy)
-    })
-    acc_perm = rbind(acc_perm,mean(as.numeric(cv)))
-    colnames(acc_perm) = c("acc_perm")
-  }
-  return(acc_perm)
-}
-
-#===============================================================================
-## Function7: svm_general_accuracy
-svm_general_accuracy <- function(df1,df2){
-  df1$good_1 = factor(df1$good_1, levels = c(0, 1))
-  df2$good_1 = factor(df2$good_1, levels = c(0, 1))
-  training_fold = df1 
-  test_fold = df2 
-  test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-  training_fold[-1] = scale(training_fold[-1])
-  classifier = svm(formula = good_1 ~ .,
-                   data = training_fold,
-                   type = 'C-classification',
-                   kernel = 'radial')
-  y_pred = predict(classifier, newdata = test_fold[-1])
-  cm = table(test_fold[, 1], y_pred)
-  accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-  ci_level = acc_95CI(test_fold[, 1], y_pred,1000)
-  
-  ci_lower <- ci_level[1]
-  ci_upper <- ci_level[2]
-  ci_method_used <- "Bootstrap"
-
-  cat("均值:", round(accuracy, 4), "\n")
-  cat("下限:", round(ci_lower, 4), "\n")
-  cat("上限:", round(ci_upper, 4), "\n")
-  cat("方法:", ci_method_used, "\n")
-  return(list(accuracy,
-              ci_level))
-}
-
-#===============================================================================
-## Function8: acc_95CI
-acc_95CI <- function(y_true_all, y_score_all, nBoot) {
-  acc_boot <- numeric(nBoot)
-  N <- length(y_true_all)
-  
-  for (b in 1:nBoot) {
-    idx <- sample(seq_len(N), size = N, replace = TRUE)
-    y_b <- y_true_all[idx]
-    s_b <- y_score_all[idx]
-    
-    acc_boot[b] <- mean(y_b == s_b)
-  }
-  
-  acc_boot <- acc_boot[!is.na(acc_boot)]
-  CI95 <- quantile(acc_boot, c(0.025, 0.975))
-  
-  return(CI95)
-}
-#===============================================================================
-## Function8: svm_general_accuracy_perm
-svm_general_accuracy_perm <- function(df1,df2,n_iter){
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = n_iter, # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
-  
-  permAcc = data.frame();
-  for (p in 1:n_iter){
-    setTxtProgressBar(pb, p)
-    df_rand = df2
-    df_rand$good_1 = sample(factor(df2$good_1, levels = c(0, 1)))
-    df_rand = na.omit(df_rand)
-    df1$good_1 = factor(df1$good_1, levels = c(0, 1))
-    training_fold = df1 
-    test_fold = df_rand
-    test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
-    training_fold[-1] = scale(training_fold[-1])
-    classifier = svm(formula = good_1 ~ .,
-                     data = training_fold,
-                     type = 'C-classification',
-                     kernel = 'radial')
-    y_pred = predict(classifier, newdata = test_fold[-1])
-    cm = table(test_fold[, 1], y_pred)
-    accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-    permAcc = rbind(permAcc,accuracy)
-  }
-  colnames(permAcc) = "acc_perm"
-  return(permAcc)
-}
-
-#===============================================================================
-## Function9: reorg_df
+## Function2: reorg_df
 reorg_df <- function(df_feature,feature){
   df_feature = na.omit(df_feature)
   df_feature_var = df_feature[,!grepl('R|Agood|Abad', colnames(df_feature))]
@@ -314,9 +106,9 @@ reorg_df <- function(df_feature,feature){
   df_need_good = df_need[,1:(ncol(df_need)-1)]
   df_need_bad = df_need[,c(1:(ncol(df_need)-2),ncol(df_need))]
   
-  df_need_good_dcast<-dcast(df_need_good, n ~ RoleA1 + LeadL1 + CH)
-  df_need_bad_dcast<-dcast(df_need_bad, n ~ RoleA1 + LeadL1 + CH)
- 
+  df_need_good_dcast<-dcast(df_need_good, n ~ RoleA1 + LeadL1 + CH, value.var = "Agood")
+  df_need_bad_dcast<-dcast(df_need_bad, n ~ RoleA1 + LeadL1 + CH, value.var = "Abad")
+  
   df_need_good_dcast$good_1 = rep(1,nrow(df_need_good_dcast))
   df_need_bad_dcast$good_1 = rep(0,nrow(df_need_bad_dcast))
   
@@ -326,9 +118,216 @@ reorg_df <- function(df_feature,feature){
   
   return(df_need_dcast)
 }
+#===============================================================================
+## Function3: svm_cv_accuracy
+svm_cv_accuracy <- function(df,nfold,n_iter,koi){
+  df[,1] = factor(df[,1], levels = c(0, 1))
+  df = na.omit(df)
+  
+  accuracy_all = data.frame()
+  for (i in 1:n_iter){
+    folds = svm_createFolds(df,nfold)
+    
+    cv = lapply(folds, function(x) { 
+      training_fold = df[-x, ] 
+      test_fold = df[x, ] 
+      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
+      training_fold[-1] = scale(training_fold[-1])
+      classifier = svm(formula = good_1 ~ .,
+                       data = training_fold,
+                       type = 'C-classification',
+                       kernel = koi)
+      y_pred = predict(classifier, newdata = test_fold[-1])
+      cm = table(test_fold[, 1], y_pred)
+      accuracy_single = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+      
+      return(accuracy_single)
+    })
+    accuracy_all = rbind(accuracy_all,mean(as.numeric(cv)))
+  }
+  realMean = mean(accuracy_all[,1])
+  return(realMean)
+}
 
 #===============================================================================
-## Function10: track_regress
+## Function4: svm_createFolds
+svm_createFolds <- function(df,nfold){
+  df[,1] = as.factor(df[,1])
+  df_y<-df[df[,1] == 1,]
+  n = nrow(df_y)
+  folds = createFolds(df_y[,1], k = nfold)
+  folds_2 = lapply(folds, function(x) {
+    x_2 = c(x,x+n)
+    return(x_2)
+  })
+  return(folds_2)
+}
+
+#===============================================================================
+## Function5: ind_scale
+ind_scale <- function(df1,df2){
+  df1_mean = sapply(df1, mean)
+  df1_sd = sapply(df1, sd)
+  df2_scale = df2
+  for (c in 1:length(df1_mean)){
+    df2_scale[,c] = (df2[,c] - df1_mean[c])/df1_sd[c]
+  }
+  return(df2_scale)
+}
+
+#===============================================================================
+## Function6: svm_perm
+svm_perm <- function(df,nfold,n_iter,koi){
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+
+  permMean = data.frame();
+  for (p in 1:n_iter){
+    setTxtProgressBar(pb, p)
+    folds = svm_createFolds(df,nfold)
+    cv = lapply(folds, function(x) { 
+      training_fold = df[-x, ] 
+      test_fold = df[x, ] 
+      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
+      training_fold[-1] = scale(training_fold[-1])
+
+      training_fold$good_1 = sample(factor(training_fold$good_1, levels = c(0, 1)))
+      classifier = svm(formula = good_1 ~ .,
+                       data = training_fold,
+                       type = 'C-classification',
+                       kernel = koi)
+      y_pred = predict(classifier, newdata = test_fold[-1])
+      cm = table(test_fold[, 1], y_pred)
+      accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+      return(accuracy)
+    })
+    permMean = rbind(permMean,mean(as.numeric(cv)))
+  }
+  return(permMean)
+}
+
+#===============================================================================
+## Function7: svm_feat_impor
+svm_feat_impor <- function(df,feat,nfold,nCV,nPerm){
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = nPerm, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  df_perm = df
+  acc_perm = data.frame();
+  for (i in 1:nPerm){
+    setTxtProgressBar(pb, i)
+    df_perm[,grepl(feat, colnames(df_perm))] = df_perm[sample(1:nrow(df_perm)),grepl(feat, colnames(df_perm))]
+    df_perm$good_1 = factor(df_perm$good_1, levels = c(0, 1))
+    folds = svm_createFolds(df_perm,nfold)
+    cv = lapply(folds, function(x) { 
+      training_fold = df_perm[-x, ] 
+      test_fold = df_perm[x, ] 
+      test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
+      training_fold[-1] = scale(training_fold[-1])
+      classifier = svm(formula = good_1 ~ .,
+                       data = training_fold,
+                       type = 'C-classification',
+                       kernel = 'radial')
+      y_pred = predict(classifier, newdata = test_fold[-1])
+      cm = table(test_fold[, 1], y_pred)
+      accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+      return(accuracy)
+    })
+    acc_perm = rbind(acc_perm,mean(as.numeric(cv)))
+    colnames(acc_perm) = c("acc_perm")
+  }
+  return(acc_perm)
+}
+
+#===============================================================================
+## Function8: svm_general_accuracy
+svm_general_accuracy <- function(df1,df2){
+  df1$good_1 = factor(df1$good_1, levels = c(0, 1))
+  df2$good_1 = factor(df2$good_1, levels = c(0, 1))
+  training_fold = df1 
+  test_fold = df2 
+  test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
+  training_fold[-1] = scale(training_fold[-1])
+  classifier = svm(formula = good_1 ~ .,
+                   data = training_fold,
+                   type = 'C-classification',
+                   kernel = 'radial')
+  y_pred = predict(classifier, newdata = test_fold[-1])
+  cm = table(test_fold[, 1], y_pred)
+  accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+  ci_level = acc_95CI(test_fold[, 1], y_pred,1000)
+  
+  ci_lower <- ci_level[1]
+  ci_upper <- ci_level[2]
+  ci_method_used <- "Bootstrap"
+
+  cat("均值:", round(accuracy, 4), "\n")
+  cat("下限:", round(ci_lower, 4), "\n")
+  cat("上限:", round(ci_upper, 4), "\n")
+  cat("方法:", ci_method_used, "\n")
+  return(list(accuracy,
+              ci_level))
+}
+
+#===============================================================================
+## Function9: acc_95CI
+acc_95CI <- function(y_true_all, y_score_all, nBoot) {
+  acc_boot <- numeric(nBoot)
+  N <- length(y_true_all)
+  
+  for (b in 1:nBoot) {
+    idx <- sample(seq_len(N), size = N, replace = TRUE)
+    y_b <- y_true_all[idx]
+    s_b <- y_score_all[idx]
+    
+    acc_boot[b] <- mean(y_b == s_b)
+  }
+  
+  acc_boot <- acc_boot[!is.na(acc_boot)]
+  CI95 <- quantile(acc_boot, c(0.025, 0.975))
+  
+  return(CI95)
+}
+#===============================================================================
+## Function10: svm_general_accuracy_perm
+svm_general_accuracy_perm <- function(df1,df2,n_iter){
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  
+  permAcc = data.frame();
+  for (p in 1:n_iter){
+    setTxtProgressBar(pb, p)
+    df_rand = df2
+    df_rand$good_1 = sample(factor(df2$good_1, levels = c(0, 1)))
+    df_rand = na.omit(df_rand)
+    df1$good_1 = factor(df1$good_1, levels = c(0, 1))
+    training_fold = df1 
+    test_fold = df_rand
+    test_fold[-1] = ind_scale(training_fold[-1],test_fold[-1])
+    training_fold[-1] = scale(training_fold[-1])
+    classifier = svm(formula = good_1 ~ .,
+                     data = training_fold,
+                     type = 'C-classification',
+                     kernel = 'radial')
+    y_pred = predict(classifier, newdata = test_fold[-1])
+    cm = table(test_fold[, 1], y_pred)
+    accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+    permAcc = rbind(permAcc,accuracy)
+  }
+  colnames(permAcc) = "acc_perm"
+  return(permAcc)
+}
+
+#===============================================================================
+## Function11: track_regress
 track_regress <- function(df_invest){
   df_invest_Trial = df_invest[,grepl('_inv', colnames(df_invest))]
   df_invest_Manip = df_invest[,!grepl('_inv', colnames(df_invest))]
@@ -379,7 +378,7 @@ track_regress <- function(df_invest){
 }
 
 #===============================================================================
-## Function11: svm_lime
+## Function12: svm_lime
 svm_lime <- function(df1,df2,n_b,target_label,n_feat,select_method){
   df1$good_1[df1$good_1 == 1] <- 'yes'
   df1$good_1[df1$good_1 == 0] <- 'no'
@@ -399,7 +398,7 @@ svm_lime <- function(df1,df2,n_b,target_label,n_feat,select_method){
 }
 
 #===============================================================================
-## Function12: lm_cv_correlation
+## Function13: lm_cv_correlation
 lm_cv_correlation <- function(df,nfold,n_iter,out_mat){
   df = na.omit(df)
   colnames(df)[1] = "y_value"
@@ -431,7 +430,7 @@ lm_cv_correlation <- function(df,nfold,n_iter,out_mat){
 }
 
 #===============================================================================
-## Function13: lm_perm
+## Function14: lm_perm
 lm_perm <- function(df,nfold,n_iter,out_mat){
   pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
                        max = n_iter, # Maximum value of the progress bar
@@ -469,7 +468,7 @@ lm_perm <- function(df,nfold,n_iter,out_mat){
 }
 
 #===============================================================================
-## Function14: nested_cv_classifier
+## Function15: nested_cv_classifier
 nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_not, n_bootstrap = 1000, ci_level = 0.95) {
   
   pb <- txtProgressBar(min = 0, max = n_iter, style = 3, width = 50, char = "=")
@@ -738,7 +737,7 @@ nested_cv_classifier <- function(df, nfold, n_iter, classifier_type, permute_or_
 }
 
 #===============================================================================
-## Function15: tune_svm
+## Function16: tune_svm
 tune_svm <- function(training_data, params, nfold) {
   tune_grid = expand.grid(C = params$C_range, gamma = params$gamma_range)
   best_accuracy = 0
@@ -782,7 +781,7 @@ tune_svm <- function(training_data, params, nfold) {
 }
 
 #===============================================================================
-## Function16: tune_glmnet
+## Function17: tune_glmnet
 tune_glmnet <- function(X_train, y_train, C_range, nfold, alpha) {
   best_accuracy = 0
   best_C = 1
@@ -828,7 +827,7 @@ tune_glmnet <- function(X_train, y_train, C_range, nfold, alpha) {
 }
 
 #===============================================================================
-## Function17: tune_liblinear
+## Function18: tune_liblinear
 tune_liblinear <- function(X_train, y_train, C_range, nfold, type) {
   best_accuracy = 0
   best_C = 1
