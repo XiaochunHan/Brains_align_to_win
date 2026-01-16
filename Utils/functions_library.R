@@ -10,7 +10,7 @@ load_packages <- function(pkgs) {
 
 #===============================================================================
 ## Function1: extract_win_or_pay_mean
-extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_trialN){
+extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_trialN,permute_or_not){
   df_feature$Agood = rep(NaN, nrow(df_feature))
   df_feature$Abad = rep(NaN, nrow(df_feature))
   df_feature_Trial = df_feature[,grepl('R', colnames(df_feature))]
@@ -18,8 +18,14 @@ extract_win_or_pay_mean <- function(df_feature,df_y,feature,win_or_pay,show_pay_
   df_y_pay_Trial = df_y[,grepl('_pay', colnames(df_y))]
 
   for (n in c(1:nrow(df_y))){
-    IndexWin = df_y_win_Trial[n,] == 1
-    IndexLose = df_y_win_Trial[n,] == 0
+    
+    if (permute_or_not == TRUE){
+      IndexWin = sample(df_y_win_Trial[n,]) == 1
+      IndexLose = sample(df_y_win_Trial[n,]) == 0
+    }else{
+      IndexWin = df_y_win_Trial[n,] == 1
+      IndexLose = df_y_win_Trial[n,] == 0
+    }
     
     if (win_or_pay == "win"){
       IndexGood = IndexWin
@@ -1431,4 +1437,56 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
     y_score = y_score,
     roc_object = roc_obj
   ))
+}
+
+#===============================================================================
+## Function28: svm_perm_trial
+svm_perm_trial <- function(df_BOLD,df_FC,df_WNS,df_BNS,df_y,foi,n_iter){
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  
+  permACC = data.frame();
+  for (p in 1:n_iter){
+    setTxtProgressBar(pb, p)
+    BOLD_mean = extract_win_or_pay_mean(df_BOLD,df_y,"BOLD_","win",FALSE,TRUE)
+    FC_mean = extract_win_or_pay_mean(df_FC,df_y,"FC_","win",FALSE,TRUE)
+    WNS_mean = extract_win_or_pay_mean(df_WNS,df_y,"WNS_","win",FALSE,TRUE)
+    BNS_mean = extract_win_or_pay_mean(df_BNS,df_y,"BNS_","win",FALSE,TRUE)
+    if (foi == "all"){
+      data_invest = cbind(WNS_mean[,c(1,4:ncol(WNS_mean))],BNS_mean[,4:ncol(BNS_mean)],BOLD_mean[,4:ncol(BOLD_mean)],FC_mean[,4:ncol(FC_mean)])
+    }else if (foi == "intra"){
+      data_invest = cbind(BOLD_mean[,c(1,4:ncol(BOLD_mean))],FC_mean[,4:ncol(FC_mean)])
+    }else if (foi == "inter"){
+      data_invest = cbind(WNS_mean[,c(1,4:ncol(WNS_mean))],BNS_mean[,4:ncol(BNS_mean)])
+    }
+    acc = svm_cv_accuracy(data_invest,5,1,"radial")
+    permACC = rbind(permACC,acc)
+  }
+  
+  return(permACC)
+}
+
+#===============================================================================
+## Function29: svm_perm_trial_general
+svm_perm_trial_general <- function(df1,df_WNS_2,df_BNS_2,df_y,n_iter){
+  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
+                       max = n_iter, # Maximum value of the progress bar
+                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                       width = 50,   # Progress bar width. Defaults to getOption("width")
+                       char = "=")   # Character used to create the bar
+  
+  permACC = data.frame();
+  for (p in 1:n_iter){
+    setTxtProgressBar(pb, p)
+    WNS_mean = extract_win_or_pay_mean(df_WNS_2,df_y,"WNS_","win",FALSE,TRUE)
+    BNS_mean = extract_win_or_pay_mean(df_BNS_2,df_y,"BNS_","win",FALSE,TRUE)
+    df2 = cbind(WNS_mean[,c(1,3:ncol(WNS_mean))],BNS_mean[,3:ncol(BNS_mean)])
+    acc = svm_general_accuracy(df1,df2)
+    permACC = rbind(permACC,acc[[1]])
+  }
+  
+  return(permACC)
 }

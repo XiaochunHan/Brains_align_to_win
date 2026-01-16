@@ -12,13 +12,22 @@ source("../../utils/functions_library.R")
 load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","pROC"))
 ```
 
-## Import data
+## Control analyses
 ```{r import data}
 dataset_pseudo <- read.csv('Pseudo_pair_control.csv',header=TRUE,sep=",")
 dataset_circular <- read.csv('Circular_time_control.csv',header=TRUE,sep=",")
-dataset_pseudo_and_circular <- read.csv('Pseudo_pair_circular_control.csv',header=TRUE,sep=",")
+dataset_pseudo_and_circular <- read.csv('Pseudo_pair_circular_both_control.csv',header=TRUE,sep=",")
+
+dataset_pseudo_full <- read.csv('Pseudo_pair_full-model_control.csv',header=TRUE,sep=",")
+dataset_circular_full <- read.csv('Circular_time_full-model_control.csv',header=TRUE,sep=",")
+dataset_pseudo_and_circular_full <- read.csv('Pseudo_pair_circular_both_full-model_control.csv',header=TRUE,sep=",")
+
 dataset_machine_same <- read.csv('Same_machine_control.csv',header=TRUE,sep=",")
 dataset_machine_diff <- read.csv('Diff_machine_control.csv',header=TRUE,sep=",")
+
+acc_all_trial = readRDS("SVM_win_all_trial_level_perm_1000.RData")
+acc_inter_trial = readRDS("SVM_win_inter_trial_level_perm_1000.RData")
+acc_intra_trial = readRDS("SVM_win_intra_trial_level_perm_1000.RData")
 ```
 
 ### Pseudo_pair_control
@@ -27,13 +36,32 @@ acc_low_25 = sort(dataset_pseudo$Var1)[25]
 acc_top_25 = sort(dataset_pseudo$Var1)[975]
 dataset_pseudo$ci95 = rep(0,1000)
 dataset_pseudo$ci95[(dataset_pseudo$Var1<acc_low_25|dataset_pseudo$Var1>acc_top_25)] = 1
-acc_all = 0.9212
-p_perm = mean(acc_all<dataset_pseudo$Var1)
+acc_real = 0.9212
+p_perm = mean(acc_real<dataset_pseudo$Var1)
+print(p_perm)
 
 p<-ggplot(dataset_pseudo, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_all), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    geom_vline(aes(xintercept = acc_real), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+### Pseudo_pair_full-model_control
+```{r permute_pseudo_full}
+acc_low_25 = sort(dataset_pseudo_full$Var1)[25]
+acc_top_25 = sort(dataset_pseudo_full$Var1)[975]
+dataset_pseudo_full$ci95 = rep(0,1000)
+dataset_pseudo_full$ci95[(dataset_pseudo_full$Var1<acc_low_25|dataset_pseudo_full$Var1>acc_top_25)] = 1
+acc_real = 0.7618
+p_perm = mean(acc_real<dataset_pseudo_full$Var1)
+print(p_perm)
+
+p<-ggplot(dataset_pseudo_full, aes(x = Var1, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#000000"))+
+    geom_vline(aes(xintercept = acc_real), color = "#000000", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ```
@@ -44,13 +72,34 @@ acc_low_25 = sort(dataset_circular$Var1)[25]
 acc_top_25 = sort(dataset_circular$Var1)[975]
 dataset_circular$ci95 = rep(0,1000)
 dataset_circular$ci95[(dataset_circular$Var1<acc_low_25|dataset_circular$Var1>acc_top_25)] = 1
-acc_all = 0.9212
-p_perm = mean(acc_all<dataset_circular$Var1)
+
+acc_real = 0.9212
+p_perm = mean(acc_real>dataset_circular$Var1)
+print(p_perm)
 
 p<-ggplot(dataset_circular, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_all), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.7,1) + 
+    geom_vline(aes(xintercept = acc_real), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.7,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+### Circular_time_full-model_control
+```{r permute_circular_full}
+acc_low_25 = sort(dataset_circular_full$Var1)[25]
+acc_top_25 = sort(dataset_circular_full$Var1)[975]
+dataset_circular_full$ci95 = rep(0,999)
+dataset_circular_full$ci95[(dataset_circular_full$Var1<acc_low_25|dataset_circular_full$Var1>acc_top_25)] = 1
+
+acc_real = 0.7618
+p_perm = mean(acc_real<dataset_circular_full$Var1)
+print(p_perm)
+
+p<-ggplot(dataset_circular_full, aes(x = Var1, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#000000"))+
+    geom_vline(aes(xintercept = acc_real), color = "#000000", linewidth = 2) + theme_classic()+xlim(0.7,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ```
@@ -61,13 +110,39 @@ acc_low_25 = sort(dataset_pseudo_and_circular$Var1)[25]
 acc_top_25 = sort(dataset_pseudo_and_circular$Var1)[975]
 dataset_pseudo_and_circular$ci95 = rep(0,1000)
 dataset_pseudo_and_circular$ci95[(dataset_pseudo_and_circular$Var1<acc_low_25|dataset_pseudo_and_circular$Var1>acc_top_25)] = 1
-acc_all = 0.9212
-p_perm = mean(acc_all<dataset_pseudo_and_circular$Var1)
+
+acc_real = 0.9212
+p_perm = mean(acc_real<dataset_pseudo_and_circular$Var1)
+print(p_perm)
+
+
+p_perm_trial = mean(acc_inter_trial$acc_perm<dataset_pseudo_and_circular$Var1)
+print(p_perm_trial)
 
 p<-ggplot(dataset_pseudo_and_circular, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_all), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    geom_vline(aes(xintercept = acc_real), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+### Pseudo_pair_and_circular_full-model_control
+```{r permute_pseudo_full}
+acc_low_25 = sort(dataset_pseudo_and_circular_full$Var1)[25]
+acc_top_25 = sort(dataset_pseudo_and_circular_full$Var1)[975]
+dataset_pseudo_and_circular_full$ci95 = rep(0,1000)
+dataset_pseudo_and_circular_full$ci95[(dataset_pseudo_and_circular_full$Var1<acc_low_25|dataset_pseudo_and_circular_full$Var1>acc_top_25)] = 1
+
+acc_real = 0.7618
+p_perm = mean(acc_real<dataset_pseudo_and_circular_full$Var1)
+print(p_perm)
+
+
+p<-ggplot(dataset_pseudo_and_circular_full, aes(x = Var1, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 61) + 
+    scale_fill_manual(values = c("white","#000000"))+
+    geom_vline(aes(xintercept = acc_real), color = "#000000", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ```
@@ -78,8 +153,9 @@ acc_low_25 = sort(dataset_machine_same$Var1)[25]
 acc_top_25 = sort(dataset_machine_same$Var1)[975]
 dataset_machine_same$ci95 = rep(0,1000)
 dataset_machine_same$ci95[(dataset_machine_same$Var1<acc_low_25|dataset_machine_same$Var1>acc_top_25)] = 1
-acc_all = 0.9212
-p_perm = mean(acc_all<dataset_machine_same$Var1)
+
+p_perm = mean(acc_inter_trial$acc_perm>dataset_machine_same$Var1)
+print(p_perm)
 
 p<-ggplot(dataset_machine_same, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
@@ -95,8 +171,9 @@ acc_low_25 = sort(dataset_machine_diff$Var1)[25]
 acc_top_25 = sort(dataset_machine_diff$Var1)[975]
 dataset_machine_diff$ci95 = rep(0,1000)
 dataset_machine_diff$ci95[(dataset_machine_diff$Var1<acc_low_25|dataset_machine_diff$Var1>acc_top_25)] = 1
-acc_all = 0.9212
-p_perm = mean(acc_all<dataset_machine_diff$Var1)
+
+p_perm = mean(acc_inter_trial$acc_perm>dataset_machine_diff$Var1)
+print(p_perm)
 
 p<-ggplot(dataset_machine_diff, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
@@ -106,8 +183,57 @@ p<-ggplot(dataset_machine_diff, aes(x = Var1, fill = as.factor(ci95))) +
 print(p)
 ```
 
-### Same_machine_control vs. Diff_machine_control
+#### Same_machine_control vs. Diff_machine_control
 ```{r permute_machine_same_diff}
 p_compare = sum(dataset_machine_diff$Var1<dataset_machine_same$Var1)/1000
 print(p_compare)
+```
+
+## Trial-level permutation
+### Import data
+```{r import_data}
+setwd('../../Data/Develop')
+wd<-getwd()
+dataset_BOLD <- read.csv('BOLD_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_FC <- read.csv('FC_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_BINS <- read.csv('BINS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_INS <- read.csv('INS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
+dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
+dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
+```
+
+### ALL
+```{r acc_ALL}
+acc_all_trial = readRDS("SVM_win_all_trial_level_perm_1000.RData")
+acc_all = 0.7618
+p_perm = mean(acc_all<acc_all_trial$acc_perm)
+print(p_perm)
+```
+
+### WNC-BNC
+```{r acc_INS&BINS}
+acc_low_25 = sort(acc_inter_trial$acc_perm)[50]
+acc_top_25 = sort(acc_inter_trial$acc_perm)[950]
+acc_inter_trial$ci95 = rep(0,1000)
+acc_inter_trial$ci95[(acc_inter_trial$acc_perm<acc_low_25|acc_inter_trial$acc_perm>acc_top_25)] = 1
+
+acc_inter = 0.9212
+p_perm = mean(acc_inter<acc_inter_trial$acc_perm)
+print(p_perm)
+
+p<-ggplot(acc_inter_trial, aes(x = acc_perm, fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 20) + 
+    scale_fill_manual(values = c("white","#B095C6"))+
+    geom_vline(aes(xintercept = acc_inter), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.7,1) + 
+    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+```
+
+### BOLD-FC
+```{r acc_BOLD&FC}
+
+acc_intra = 0.5823
+p_perm = mean(acc_intra<acc_intra_trial$acc_perm)
+print(p_perm)
 ```

@@ -23,8 +23,8 @@ dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
 dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
 dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
 
-INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE)
-BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE)
+INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 data1_INS_BINS_invest = cbind(INS_mean[,c(1,3:ncol(INS_mean))],BINS_mean[,3:ncol(BINS_mean)])
 ```
 
@@ -72,6 +72,13 @@ auc_wns_bns = svm_general_auc(data1_INS_BINS_invest,data2_INS_BINS_invest,cond_c
 ```{r svm_perm,eval=FALSE}
 acc_gen_perm = svm_general_accuracy_perm(data1_INS_BINS_invest,data2_INS_BINS_invest,5000)
 ```
+
+#### Permutation at trial level
+```{r svm_perm,eval=FALSE}
+acc_gen_perm_trial = svm_perm_trial_general(data1_INS_BINS_invest,dataset_INS,dataset_BINS,dataset_y_attack,1000)
+colnames(acc_gen_perm_trial) = "acc_perm"
+```
+
 #### figure
 ```{r svm_perm_figure}
 acc_gen_perm = readRDS("svm_gen_perm_INS_BINS_win_5000.RData")
