@@ -138,6 +138,7 @@ p<-ggplot(acc_wns_bns_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_vline(aes(xintercept = acc_wns_bns), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
+ggsave("Inter-brain_leave_one_session_out_perm5000.png", plot = p, width = 5, height = 4, dpi = 300)
 ```
 
 
