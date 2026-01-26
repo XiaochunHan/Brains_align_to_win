@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 source("../../utils/functions_library.R")
-load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","tidyr","stringr"))
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","tidyr","stringr","lsr"))
 ```
 
 ## Import data
@@ -22,8 +22,8 @@ dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
 dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
 dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
 
-INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE)
-BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE)
+INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 
 data_INS_BINS_invest = cbind(INS_mean[,3:ncol(INS_mean)],BINS_mean[,3:ncol(BINS_mean)])
 ```
@@ -64,7 +64,7 @@ long_data$rTPJ_rDLPFC <- as.factor(long_data$rTPJ_rDLPFC)
 ## anova
 ```{r anova}
 detailed_stats <- long_data %>%
-  group_by(BNS_WNS) %>%
+  group_by(Attack_Defend,L_F,BNS_WNS) %>%
   summarise(
     平均值 = mean(mean_value, na.rm = TRUE),
     标准差 = sd(mean_value, na.rm = TRUE),
@@ -75,8 +75,7 @@ detailed_stats <- long_data %>%
 # 打印详细分组统计结果
 print("详细分组描述性统计:")
 print(detailed_stats)
-model <- aov(mean_value ~ BNS_WNS * Attack_Defend * L_F * rTPJ_rDLPFC, data = long_data)
+model <- aov(mean_value ~ BNS_WNS * Attack_Defend * L_F, data = long_data)
 summary(model)
 ```
-
 

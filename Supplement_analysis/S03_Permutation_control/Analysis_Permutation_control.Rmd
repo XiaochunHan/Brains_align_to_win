@@ -23,7 +23,7 @@ dataset_circular_full <- read.csv('Circular_time_full-model_control.csv',header=
 dataset_pseudo_and_circular_full <- read.csv('Pseudo_pair_circular_both_full-model_control.csv',header=TRUE,sep=",")
 
 dataset_machine_same <- read.csv('Same_machine_control.csv',header=TRUE,sep=",")
-dataset_machine_diff <- read.csv('Diff_machine_control.csv',header=TRUE,sep=",")
+dataset_machine_diff <- read.csv('Cross_machine_control.csv',header=TRUE,sep=",")
 
 acc_all_trial = readRDS("SVM_win_all_trial_level_perm_1000.RData")
 acc_inter_trial = readRDS("SVM_win_inter_trial_level_perm_1000.RData")
@@ -189,7 +189,7 @@ print(p_perm)
 p<-ggplot(dataset_machine_same, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_all), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    geom_vline(aes(xintercept = 0.9212), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ```
@@ -207,15 +207,37 @@ print(p_perm)
 p<-ggplot(dataset_machine_diff, aes(x = Var1, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_all), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0.5,1) + 
+    geom_vline(aes(xintercept = 0.9212), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 25),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ```
 
 #### Same_machine_control vs. Diff_machine_control
 ```{r permute_machine_same_diff}
+
 p_compare = sum(dataset_machine_diff$Var1<dataset_machine_same$Var1)/1000
 print(p_compare)
+
+p <- ggplot() +
+  # 绘制第一个数据集的直方图
+  geom_histogram(data = dataset_machine_same, 
+                 aes(x = Var1, fill = "Same"), # 为该图层数据设置填充标签
+                 colour = "#4C4C4C", bins = 61, 
+                 position = "identity", alpha = 0.2) +
+  # 绘制第二个数据集的直方图，叠加在上一个之上
+  geom_histogram(data = dataset_machine_diff, 
+                 aes(x = Var1, fill = "Cross"), 
+                 colour = "#4C4C4C", bins = 61, 
+                 position = "identity", alpha = 0.2) +
+  # 统一设置填充颜色
+  scale_fill_manual(values = c("Same" = "red","Cross" = "blue"), breaks = c("Same", "Cross")) +
+  theme_classic() +
+  xlim(0,1) +
+  labs(x = "Win-Lose Prediction Accuracy", fill = "Control") + # 可修改图例标题
+  theme(text = element_text(size = 20),
+        axis.ticks.length=unit(-0.1, "cm")) # 这里可以根据需要保留或隐藏图例
+
+print(p)
 ```
 
 ## Trial-level permutation
