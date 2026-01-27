@@ -1118,7 +1118,7 @@ auc_boot_cv <- function(df,nfold,koi,nBoot,plotROC,cond_col,filename){
       theme_classic(base_size = 14) +
       theme(axis.ticks.length=unit(-0.1, "cm"))+
       labs(x = "1 - Specificity",
-        y = "Sensitivity")
+           y = "Sensitivity")
     print(p)
     
     png(filename, width = 5, height = 4, units = "in", res = 300)  # 300DPI高清图片

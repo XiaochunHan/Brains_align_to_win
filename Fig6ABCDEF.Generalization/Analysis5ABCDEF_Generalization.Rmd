@@ -45,20 +45,19 @@ dataset_INS_female = dataset_INS[dataset_INS$Gender.M.1. == 2,]
 dataset_y_male = dataset_y_attack[dataset_y_attack$Gender.M.1. == 1,]
 dataset_y_female = dataset_y_attack[dataset_y_attack$Gender.M.1. == 2,]
 
-INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE)
-BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE)
+INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 data2_INS_BINS_invest = cbind(INS_mean[,c(1,3:ncol(INS_mean))],BINS_mean[,3:ncol(BINS_mean)])
 
-INS_mean_male = extract_win_or_pay_mean(dataset_INS_male,dataset_y_male,"WNS_","win",FALSE)
-BINS_mean_male = extract_win_or_pay_mean(dataset_BINS_male,dataset_y_male,"BNS_","win",FALSE)
+INS_mean_male = extract_win_or_pay_mean(dataset_INS_male,dataset_y_male,"WNS_","win",FALSE,FALSE)
+BINS_mean_male = extract_win_or_pay_mean(dataset_BINS_male,dataset_y_male,"BNS_","win",FALSE,FALSE)
 data2_INS_BINS_invest_male = cbind(INS_mean_male[,c(1,3:ncol(INS_mean_male))],BINS_mean_male[,3:ncol(BINS_mean_male)])
 
-INS_mean_female = extract_win_or_pay_mean(dataset_INS_female,dataset_y_female,"WNS_","win",FALSE)
-BINS_mean_female = extract_win_or_pay_mean(dataset_BINS_female,dataset_y_female,"BNS_","win",FALSE)
+INS_mean_female = extract_win_or_pay_mean(dataset_INS_female,dataset_y_female,"WNS_","win",FALSE,FALSE)
+BINS_mean_female = extract_win_or_pay_mean(dataset_BINS_female,dataset_y_female,"BNS_","win",FALSE,FALSE)
 data2_INS_BINS_invest_female = cbind(INS_mean_female[,c(1,3:ncol(INS_mean_female))],BINS_mean_female[,3:ncol(BINS_mean_female)])
 ```
 
-## Both gender
 ### Accuracy
 ```{r svm_acc_both}
 acc_wns_bns = svm_general_accuracy(data1_INS_BINS_invest,data2_INS_BINS_invest)
@@ -71,12 +70,6 @@ auc_wns_bns = svm_general_auc(data1_INS_BINS_invest,data2_INS_BINS_invest,cond_c
 ### Permutation
 ```{r svm_perm,eval=FALSE}
 acc_gen_perm = svm_general_accuracy_perm(data1_INS_BINS_invest,data2_INS_BINS_invest,5000)
-```
-
-#### Permutation at trial level
-```{r svm_perm,eval=FALSE}
-acc_gen_perm_trial = svm_perm_trial_general(data1_INS_BINS_invest,dataset_INS,dataset_BINS,dataset_y_attack,1000)
-colnames(acc_gen_perm_trial) = "acc_perm"
 ```
 
 #### figure
@@ -96,75 +89,4 @@ p <- ggplot(acc_gen_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ggsave("General_perm_both_gender.png", plot = p, width = 5, height = 4, dpi = 300)
-```
-
-## Male
-### Accuracy
-```{r svm_acc_male}
-acc_wns_bns_male = svm_general_accuracy(data1_INS_BINS_invest,data2_INS_BINS_invest_male)
-```
-### AUC
-```{r svm_auc_male}
-auc_wns_bns_male = svm_general_auc(data1_INS_BINS_invest,data2_INS_BINS_invest_male,cond_col = "#FF7E79",filename = 'general_male_roc_plot.png')
-```
-
-### Permutation
-```{r svm_perm_male,eval=FALSE}
-acc_gen_perm_male = svm_general_accuracy_perm(data1_INS_BINS_invest,data2_INS_BINS_invest_male,5000)
-saveRDS(acc_gen_perm_male,"svm_gen_perm_male_INS_BINS_win_5000.RData")
-```
-
-#### figure
-```{r svm_perm_figure_male}
-acc_gen_perm_male = readRDS("svm_gen_perm_male_INS_BINS_win_5000.RData")
-acc_low_25 = sort(acc_gen_perm_male$acc_perm)[125]
-acc_top_25 = sort(acc_gen_perm_male$acc_perm)[4875]
-acc_gen_perm_male$ci95 = rep(0,5000)
-acc_gen_perm_male$ci95[(acc_gen_perm_male$acc_perm<acc_low_25|acc_gen_perm_male$acc_perm>acc_top_25)] = 1
-p_perm = mean(acc_wns_bns_male[[1]]<acc_gen_perm_male$acc_perm)
-print(p_perm)
-
-
-p<-ggplot(acc_gen_perm_male, aes(x = acc_perm, fill = as.factor(ci95))) +
-    geom_histogram(colour = "#4C4C4C", bins = 18) + 
-    scale_fill_manual(values = c("white","#FF7E79"))+
-    geom_vline(aes(xintercept = acc_wns_bns_male[[1]]), color = "#FF7E79", linewidth = 2) + theme_classic()+xlim(0,1) + 
-    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
-print(p)
-ggsave("General_perm_male.png", plot = p, width = 5, height = 4, dpi = 300)
-```
-
-## Female
-### Accuracy
-```{r svm_acc_female}
-acc_wns_bns_female = svm_general_accuracy(data1_INS_BINS_invest,data2_INS_BINS_invest_female)
-```
-### AUC
-```{r svm_auc_female}
-auc_wns_bns_female = svm_general_auc(data1_INS_BINS_invest,data2_INS_BINS_invest_female,cond_col = "#FF7E79",filename = 'general_female_roc_plot.png')
-```
-
-### Permutation
-```{r svm_perm_female,eval=FALSE}
-acc_gen_perm_female = svm_general_accuracy_perm(data1_INS_BINS_invest,data2_INS_BINS_invest_female,5000)
-saveRDS(acc_gen_perm_female,"svm_gen_perm_female_INS_BINS_win_5000.RData")
-```
-#### figure
-```{r svm_perm_figure_female}
-acc_gen_perm_female = readRDS("svm_gen_perm_female_INS_BINS_win_5000.RData")
-acc_low_25 = sort(acc_gen_perm_female$acc_perm)[125]
-acc_top_25 = sort(acc_gen_perm_female$acc_perm)[4875]
-acc_gen_perm_female$ci95 = rep(0,5000)
-acc_gen_perm_female$ci95[(acc_gen_perm_female$acc_perm<acc_low_25|acc_gen_perm_female$acc_perm>acc_top_25)] = 1
-p_perm = mean(acc_wns_bns_female[[1]]<acc_gen_perm_female$acc_perm)
-print(p_perm)
-
-
-p <- ggplot(acc_gen_perm_female, aes(x = acc_perm, fill = as.factor(ci95))) +
-    geom_histogram(colour = "#4C4C4C", bins = 18) + 
-    scale_fill_manual(values = c("white","#FF7E79"))+
-    geom_vline(aes(xintercept = acc_wns_bns_female[[1]]), color = "#FF7E79", linewidth = 2) + theme_classic()+xlim(0,1) + 
-    labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
-print(p)
-ggsave("General_perm_female.png", plot = p, width = 5, height = 4, dpi = 300)
 ```

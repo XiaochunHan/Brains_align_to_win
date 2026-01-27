@@ -1,7 +1,7 @@
 ---
 title: "Analysis3A_infoTrack_groupSuccess_correlation"
 author: "Xiaochun Han"
-date: "2023-12-17"
+date: "2025-12-17"
 output: html_document
 ---
 
@@ -31,16 +31,89 @@ names(InfoTrack_Defend_Lead) = c("DL_detaC_within_Tmean","DL_detaC_within_TG","D
 names(InfoTrack_Defend_Follow) = c("DF_detaC_within_Tmean","DF_detaC_within_TG","DF_detaC_between_TG")
 
 df_org_infoTrack = cbind(groupSuccess,InfoTrack_Attack_Lead,InfoTrack_Attack_Follow,InfoTrack_Defend_Lead,InfoTrack_Defend_Follow)
+df_org_infoTrack_Attack = cbind(groupSuccess,InfoTrack_Attack_Lead,InfoTrack_Attack_Follow)
+df_org_infoTrack_Defend = cbind(groupSuccess,InfoTrack_Defend_Lead,InfoTrack_Defend_Follow)
 ```
 
 ## Regression
-### linear - infoTrack
-```{r linear}
-model <- lm(groupSuccess ~ ., data = df_org_infoTrack)
-summary(model)
-vif(model)
+```{r Regress_analysis}
+model_list <- list(
+model_all <- lm(groupSuccess ~ ., data = df_org_infoTrack),
+model_attack <- lm(groupSuccess ~ ., data = df_org_infoTrack_Attack),
+model_defend <- lm(groupSuccess ~ ., data = df_org_infoTrack_Defend)
+)
 
-mr = data.frame(df_org_infoTrack$groupSuccess, model$fitted.values)
+R2 <- data.frame(
+  Model_Name = c("model_all","model_attack","model_defend"),
+  R_squared = numeric(length(model_list)),
+  stringsAsFactors = FALSE
+)
+
+for (i in seq_along(model_list)) {
+  model_summary <- summary(model_list[[i]])
+  R2$R_squared[i] <- model_summary$r.squared
+}
+
+print(R2)
+```
+
+## Regression cross-validation
+```{r cross_valid}
+cv_list <- list(
+cv_all = lm_cv_correlation(df_org_infoTrack,5,100,'r_value'),
+cv_attack = lm_cv_correlation(df_org_infoTrack_Attack,5,100,'r_value'),
+cv_defend = lm_cv_correlation(df_org_infoTrack_Defend,5,100,'r_value')
+)
+
+Rvalue <- data.frame(
+  r_values = sapply(cv_list, function(x) x),
+  stringsAsFactors = FALSE
+)
+
+print(Rvalue)
+```
+
+## Permutation cross-validation
+```{r permutation, eval=FALSE}
+#Attacker-leader
+perm_all = lm_perm(df_org_infoTrack,5,5000,'r_value')
+perm_attack = lm_perm(df_org_infoTrack_Attack,5,5000,'r_value')
+perm_defend = lm_perm(df_org_infoTrack_Defend,5,5000,'r_value')
+```
+
+### Permutation save
+```{r perm_save, eval=FALSE}
+saveRDS(perm_all, "lm_perm_all_5000_r.RData")
+saveRDS(perm_attack, "lm_perm_attack_5000_r.RData")
+saveRDS(perm_defend, "lm_perm_defend_5000_r.RData")
+```
+
+### Permutation read
+```{r perm_read}
+perm_all = readRDS("lm_perm_all_5000_r.RData")
+perm_attack = readRDS("lm_perm_attack_5000_r.RData")
+perm_defend = readRDS("lm_perm_defend_5000_r.RData")
+```
+
+### Permutation p value
+```{r Summary_R2}
+p_perm_list <- list(
+  p_perm_all = mean(cv_list$cv_all<perm_all$lm_perm),
+  p_perm_attack = mean(cv_list$cv_attack<perm_attack$lm_perm),
+  p_perm_defend = mean(cv_list$cv_defend<perm_defend$lm_perm)
+)
+
+p_perm <- data.frame(
+  p_values = sapply(p_perm_list, function(x) x),
+  stringsAsFactors = FALSE
+)
+
+print(p_perm)
+```
+
+## Figure
+```{r linear}
+mr = data.frame(df_org_infoTrack$groupSuccess, model_all$fitted.values)
 names(mr) = c("measuredSuccess", "predictedSuccess")
 
 p <- ggplot(mr, aes(x=measuredSuccess, y=predictedSuccess)) +
