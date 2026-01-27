@@ -1,5 +1,5 @@
 ---
-title: "Analysis3BC_infoTrack_PNICO_correlation"
+title: "Analysis4_Collinearity"
 author: "Xiaochun Han"
 date: "2026-01-25"
 output: html_document
@@ -19,45 +19,71 @@ tr <- read_excel('DAFD_Behavior_Neural_30sess_behav_cor_AllINS_20250524.xlsx',sh
 #Attacker-Leader-WNC
 beh_ALW_alpha1 = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),c("detaC_within_Tmean")]
 beh_ALW_alpha2 = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),c("detaC_within_TG")]
+beh_ALB = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),c("detaC_between_TG")]
 neural_ALW = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),grepl('WINS_CH', colnames(tr))]
-df_org_ALW_alpha1_alpha2 = cbind(beh_ALW_alpha1,beh_ALW_alpha2,neural_ALW)
-colnames(df_org_ALW_alpha1_alpha2)[c(1,2)] = c('alpha1','alpha2')
+df_org_ALW = cbind(beh_ALW_alpha1,beh_ALW_alpha2,beh_ALB, neural_ALW)
+colnames(df_org_ALW)[c(1,2,3)] = c('alpha1','alpha2','beta1')
+
+#Attacker-Leader-BNC
+neural_ALB = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),grepl('BINS_CH', colnames(tr))]
+df_org_ALB = cbind(beh_ALW_alpha1,beh_ALW_alpha2,beh_ALB,neural_ALB)
+colnames(df_org_ALB)[c(1,2,3)] = c('alpha1','alpha2','beta1')
 
 #Attacker-Follower-WNC
 beh_AFW_alpha1 = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==0)),c("detaC_within_Tmean")]
 beh_AFW_alpha2 = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==0)),c("detaC_within_TG")]
+beh_AFB = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==0)),c("detaC_between_TG")]
 neural_AFW = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==0)),grepl('WINS_CH', colnames(tr))]
-df_org_AFW_alpha1_alpha2 = cbind(beh_AFW_alpha1,beh_AFW_alpha2,neural_AFW)
-colnames(df_org_AFW_alpha1_alpha2)[c(1,2)] = c('alpha1','alpha2')
+df_org_AFW = cbind(beh_AFW_alpha1,beh_AFW_alpha2,beh_AFB,neural_AFW)
+colnames(df_org_AFW)[c(1,2,3)] = c('alpha1','alpha2','beta1')
+
+#Attacker-Follower-BNC
+neural_AFB = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==0)),grepl('BINS_CH', colnames(tr))]
+df_org_AFB = cbind(beh_AFW_alpha1,beh_AFW_alpha2,beh_AFB,neural_AFB)
+colnames(df_org_AFB)[c(1,2,3)] = c('alpha1','alpha2','beta1')
 
 #Defender-Leader-WNC
 beh_DLW_alpha1 = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),c("detaC_within_Tmean")]
 beh_DLW_alpha2 = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),c("detaC_within_TG")]
+beh_DLB = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),c("detaC_between_TG")]
 neural_DLW = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),grepl('WINS_CH', colnames(tr))]
-df_org_DLW_alpha1_alpha2 = cbind(beh_DLW_alpha1,beh_DLW_alpha2,neural_DLW)
-colnames(df_org_DLW_alpha1_alpha2)[c(1,2)] = c('alpha1','alpha2')
+df_org_DLW = cbind(beh_DLW_alpha1,beh_DLW_alpha2,beh_DLB,neural_DLW)
+colnames(df_org_DLW)[c(1,2,3)] = c('alpha1','alpha2','beta1')
+
+#Defender-Leader-BNC
+neural_DLB = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),grepl('BINS_CH', colnames(tr))]
+df_org_DLB = cbind(beh_DLW_alpha1,beh_DLW_alpha2,beh_DLB,neural_DLB)
+colnames(df_org_DLB)[c(1,2,3)] = c('alpha1','alpha2','beta1')
 
 #Defender-Follower-WNC
 beh_DFW_alpha1 = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==0)),c("detaC_within_Tmean")]
 beh_DFW_alpha2 = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==0)),c("detaC_within_TG")]
+beh_DFB = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==0)),c("detaC_between_TG")]
 neural_DFW = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==0)),grepl('WINS_CH', colnames(tr))]
-df_org_DFW_alpha1_alpha2 = cbind(beh_DFW_alpha1,beh_DFW_alpha2,neural_DFW)
-colnames(df_org_DFW_alpha1_alpha2)[c(1,2)] = c('alpha1','alpha2')
+df_org_DFW = cbind(beh_DFW_alpha1,beh_DFW_alpha2,beh_DFB,neural_DFW)
+colnames(df_org_DFW)[c(1,2,3)] = c('alpha1','alpha2','beta1')
+
+#Defender-Follower-BNC
+neural_DFB = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==0)),grepl('BINS_CH', colnames(tr))]
+df_org_DFB = cbind(beh_DFW_alpha1,beh_DFW_alpha2,beh_DFB,neural_DFB)
+colnames(df_org_DFB)[c(1,2,3)] = c('alpha1','alpha2','beta1')
 ```
 ## Regression Analysis
 ### Attacker-leader
 ```{r Regress_analysis}
-ALW_alpha1 <- lm(alpha1 ~ ., data = df_org_ALW_alpha1_alpha2)
+ALW_alpha1 <- lm(alpha1 ~ ., data = df_org_ALW)
 summary(ALW_alpha1)
-ALW_alpha2 <- lm(alpha2 ~ ., data = df_org_ALW_alpha1_alpha2)
+ALW_alpha2 <- lm(alpha2 ~ ., data = df_org_ALW)
 summary(ALW_alpha2)
+ALB_beta1 <- lm(beta1 ~ ., data = df_org_ALB)
+summary(ALB_beta1)
 ```
 
 ### Attacker-follower
 ```{r Regress_analysis}
-AFW_alpha1 <- lm(alpha1 ~ ., data = df_org_AFW_alpha1_alpha2)
+AFW_alpha1 <- lm(alpha1 ~ ., data = df_org_AFW)
 summary(AFW_alpha1)
-AFW_alpha2 <- lm(alpha2 ~ ., data = df_org_AFW_alpha1_alpha2)
+AFW_alpha2 <- lm(alpha2 ~ ., data = df_org_AFW)
 summary(AFW_alpha2)
 ```
 
