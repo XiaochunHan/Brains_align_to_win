@@ -1490,3 +1490,210 @@ svm_perm_trial_general <- function(df1,df_WNS_2,df_BNS_2,df_y,n_iter){
   
   return(permACC)
 }
+
+#===============================================================================
+## Function30: nested_auc95CI
+nested_auc95CI <- function(df, nfold, n_iter, classifier_type, permute_or_not, n_bootstrap = 1000, ci_level = 0.95) {
+  
+  # 数据预处理
+  df[,1] = factor(df[,1], levels = c(0, 1))
+  df = na.omit(df)
+  
+  # 设置参数范围
+  if (classifier_type == "svm-rbf") {
+    params <- list(
+      C_range = 2**seq(-5, 15, length.out = 10),
+      gamma_range = 2**seq(-15, 3, length.out = 10)
+    )
+  } else {
+    params <- list(C_range = 2**seq(-5, 15, length.out = 10))
+  }
+  
+  # 初始化存储变量
+  all_y_true <- numeric(0)
+  all_y_score <- numeric(0)
+  
+  # 执行嵌套交叉验证
+  for (i in 1:n_iter) {
+    folds = svm_createFolds(df, nfold)
+    
+    cv = lapply(folds, function(x) { 
+      training_fold = df[-x, ]
+      test_fold = df[x, ]
+      
+      test_fold[-1] = ind_scale(training_fold[-1], test_fold[-1])
+      training_fold[-1] = scale(training_fold[-1])
+      
+      if (permute_or_not){
+        training_fold$good_1 = sample(factor(training_fold$good_1, levels = c(0, 1)))
+      }
+      
+      X_train = as.matrix(training_fold[, -1])
+      y_train = as.numeric(as.character(training_fold[, 1]))
+      
+      X_test = as.matrix(test_fold[, -1])
+      y_test = as.numeric(as.character(test_fold[, 1]))
+      
+      if (classifier_type == "svm-rbf") {
+        best_params = tune_svm(training_fold, params, nfold)
+        
+        classifier = svm(
+          formula = good_1 ~ .,
+          data = training_fold,
+          type = "C-classification",
+          kernel = "radial",
+          cost = best_params$C,
+          gamma = best_params$gamma,
+          probability = TRUE
+        )
+        
+        y_pred_raw = predict(classifier, newdata = test_fold[-1], probability = TRUE)
+        pred_prob = attr(y_pred_raw, "probabilities")[, "1"]
+        
+        return(list(
+          y_true = y_test,
+          y_score = pred_prob
+        ))
+        
+      } else if (classifier_type == "logistic_l2") {
+        best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 0)
+        
+        model = glmnet(
+          x = X_train,
+          y = y_train,
+          family = "binomial",
+          alpha = 0,
+          lambda = 1/best_C
+        )
+        
+        pred_prob = predict(model, newx = X_test, type = "response")
+        
+        return(list(
+          y_true = y_test,
+          y_score = as.vector(pred_prob)
+        ))
+        
+      } else if (classifier_type == "logistic_l1") {
+        best_C = tune_glmnet(X_train, y_train, params$C_range, nfold, alpha = 1)
+        
+        model = glmnet(
+          x = X_train,
+          y = y_train,
+          family = "binomial",
+          alpha = 1,
+          lambda = 1/best_C
+        )
+        
+        pred_prob = predict(model, newx = X_test, type = "response")
+        
+        return(list(
+          y_true = y_test,
+          y_score = as.vector(pred_prob)
+        ))
+        
+      } else if (classifier_type == "linear_svm_l2") {
+        best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, type = 1)
+        
+        model = LiblineaR(
+          data = X_train,
+          target = factor(y_train, levels = c(0, 1)),
+          type = 1,
+          cost = best_C,
+          bias = 1,
+          verbose = FALSE
+        )
+        
+        pred_result = predict(model, newx = X_test, decisionValues = TRUE)
+        decision_values = pred_result$decisionValues[,1]
+        
+        return(list(
+          y_true = y_test,
+          y_score = decision_values
+        ))
+        
+      } else if (classifier_type == "linear_svm_l1") {
+        best_C = tune_liblinear(X_train, y_train, params$C_range, nfold, type = 5)
+        
+        model = LiblineaR(
+          data = X_train,
+          target = factor(y_train, levels = c(0, 1)),
+          type = 5,
+          cost = best_C,
+          bias = 1,
+          verbose = FALSE
+        )
+        
+        pred_result = predict(model, newx = X_test, decisionValues = TRUE)
+        decision_values = pred_result$decisionValues[,1]
+        
+        return(list(
+          y_true = y_test,
+          y_score = decision_values
+        ))
+        
+      } else {
+        stop("未知的分类器类型。支持的类型: 'svm-rbf', 'logistic_l2', 'logistic_l1', 'linear_svm_l2', 'linear_svm_l1'")
+      }
+    })
+    
+    # 收集所有折叠的结果
+    for (fold_result in cv) {
+      all_y_true <- c(all_y_true, fold_result$y_true)
+      all_y_score <- c(all_y_score, fold_result$y_score)
+    }
+  }
+  
+  # 计算AUC
+  if (length(all_y_true) > 0 && length(all_y_score) > 0) {
+    require(pROC, quietly = TRUE)
+    roc_obj <- roc(all_y_true, all_y_score, quiet = TRUE)
+    auc_value <- auc(roc_obj)
+    
+    # 使用Bootstrap计算置信区间
+    auc_95CI <- function(y_true_all, y_score_all, nBoot, ci_level = 0.95) {
+      auc_boot <- numeric(nBoot)
+      N <- length(y_true_all)
+      
+      for (b in 1:nBoot) {
+        idx <- sample(seq_len(N), size = N, replace = TRUE)
+        y_b <- y_true_all[idx]
+        s_b <- y_score_all[idx]
+        
+        tryCatch({
+          roc_b <- roc(y_b, s_b, quiet = TRUE)
+          auc_boot[b] <- auc(roc_b)
+        }, error = function(e) {
+          auc_boot[b] <- 0.5
+        })
+      }
+      
+      auc_boot <- auc_boot[!is.na(auc_boot)]
+      alpha <- 1 - ci_level
+      CI <- quantile(auc_boot, c(alpha/2, 1 - alpha/2))
+      return(CI)
+    }
+    
+    bootstrap_result <- auc_95CI(
+      y_true_all = all_y_true,
+      y_score_all = all_y_score,
+      nBoot = n_bootstrap,
+      ci_level = ci_level
+    )
+    
+    ci_lower <- bootstrap_result[1]
+    ci_upper <- bootstrap_result[2]
+    
+    # 返回AUC值及其95%置信区间
+    return(list(
+      auc = auc_value,
+      ci_lower = ci_lower,
+      ci_upper = ci_upper
+    ))
+  } else {
+    return(list(
+      auc = NA,
+      ci_lower = NA,
+      ci_upper = NA
+    ))
+  }
+}
