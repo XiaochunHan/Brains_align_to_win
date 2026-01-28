@@ -1,0 +1,130 @@
+---
+title: "Analysis2_importance_feature_oneF.Rmd"
+author: "Xiaochun Han"
+date: "2025-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+rm(list = ls())
+source("../../utils/functions_library.R")
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","kableExtra","lime","ggbeeswarm"))
+```
+
+## Import data
+```{r impart_data,eval=FALSE}
+setwd('../Data/Develop')
+wd<-getwd()
+dataset_BNS <- read.csv('BINS_single_trial_invest_oneF.csv',header=TRUE,sep=",")
+dataset_WNS <- read.csv('INS_single_trial_invest_oneF.csv',header=TRUE,sep=",")
+dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
+dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
+dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
+
+WNS_mean = extract_win_or_pay_mean(dataset_WNS,dataset_y_attack,"WNS_","win",FALSE)
+BNS_mean = extract_win_or_pay_mean(dataset_BNS,dataset_y_attack,"BNS_","win",FALSE)
+data_WNS_BNS_invest = cbind(WNS_mean[,c(1,3:ncol(WNS_mean))],BNS_mean[,3:ncol(BNS_mean)])
+```
+
+## Feature importance analysis
+```{r svm_feat_impor,eval=FALSE}
+featSet = colnames(data_WNS_BNS_invest[,2:ncol(data_WNS_BNS_invest)])
+fi_fs_invest = list()
+for (f in 1:length(featSet)){
+  fi_invest = svm_feat_impor(data_WNS_BNS_invest,featSet[f],5,100,5000)
+  fi_fs_invest[[f]] = fi_invest
+  names(fi_fs_invest)[f] = featSet[f]
+}
+saveRDS(fi_fs_invest, file = "fi_all_invest_WNS_BNS_5000_oneF.RData")
+```
+
+### Feature importance read
+```{r read_feat_impor}
+fi_fs_invest = readRDS("fi_all_invest_WNS_BNS_5000_oneF.RData")
+acc_ins_bins = 0.9138
+dec_acc = vector(length = 112)
+for (v in 1:length(fi_fs_invest)){
+  dec_acc[v] = (acc_ins_bins - mean(fi_fs_invest[[v]]$acc_perm))*100
+}
+
+fi_all <- data.frame(
+  name = names(fi_fs_invest),
+  fi_value_percent = dec_acc)
+```
+
+## Attack vs. Defender
+### ttest
+```{r ttest-fi-ad}
+fi_A = fi_all$fi_value_percent[grepl('_Attack_', fi_all$name)]
+fi_D = fi_all$fi_value_percent[grepl('_Defend_', fi_all$name)]
+df = data.frame(fi_A, fi_D)
+df <- df %>% gather(key = "feature", value = "value")
+df %>% group_by(feature) %>% summarize(mean = mean(value), sd = sd(value))
+t.test(value~feature, data = df, var.equal = TRUE)
+cohens_d(value~feature, data = df, var.equal = TRUE)
+```
+
+### figure
+```{r figure-fi-ad}
+summary_data <- df %>% group_by(feature) %>% summarize(Mean = mean(value), SE = sd(value)/sqrt(n()))
+p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
+  geom_hline(aes(yintercept = 0), color = "black", linewidth = 0.8, linetype = 1) +
+  geom_col(width = 0.6, color = "black") +
+  scale_fill_manual(values = c("#0D0D0D","#BFBFBF"))+
+  geom_jitter(
+    data = df,
+    aes(y = value, x = feature),
+    width = 0, size = 2, alpha = 0.6, color = "grey"
+  ) +
+  geom_errorbar(
+    aes(ymin = Mean - SE, ymax = Mean + SE),
+    width = 0.2, color = "black", size = 0.5
+  ) +
+  scale_y_continuous(
+    limits = c(-0.5, 1),              
+    breaks = c(-0.5, 0, 0.5, 1)  
+  )  +
+  theme_classic()+
+  theme(legend.position = "none")
+print(p)
+```
+
+## Leader vs. Follower
+### ttest
+```{r ttest-fi-lf}
+fi_L = fi_all$fi_value_percent[grepl('_L_', fi_all$name)]
+fi_F = fi_all$fi_value_percent[grepl('_F_', fi_all$name)]
+df = data.frame(fi_L, fi_F)
+df <- df %>% gather(key = "feature", value = "value")
+df %>% group_by(feature) %>% summarize(mean = mean(value), sd = sd(value))
+t.test(value~feature, data = df, var.equal = TRUE)
+cohens_d(value~feature, data = df, var.equal = TRUE)
+```
+
+### figure
+```{r figure-fi-lf}
+summary_data <- df %>% group_by(feature) %>% summarize(Mean = mean(value), SE = sd(value)/sqrt(n()))
+summary_data$feature = factor(summary_data$feature, levels = c("fi_L","fi_F"))
+p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
+  geom_hline(aes(yintercept = 0), color = "black", linewidth = 0.8, linetype = 1) +
+  geom_col(width = 0.6, color = "black") +
+  scale_fill_manual(values = c("#DA6F6F","#F29697"))+
+  geom_jitter(
+    data = df,
+    aes(y = value, x = feature),
+    width = 0, size = 2, alpha = 0.6, color = "grey"
+  ) +
+  geom_errorbar(
+    aes(ymin = Mean - SE, ymax = Mean + SE),
+    width = 0.2, color = "black", size = 0.5
+  ) +
+  scale_y_continuous(
+    limits = c(-0.5, 1),                
+    breaks = c(-0.5, 0, 0.5, 1)  
+  ) +
+  theme_classic()+
+  theme(legend.position = "none")
+print(p)
+```
+
