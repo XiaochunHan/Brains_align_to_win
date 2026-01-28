@@ -1,0 +1,132 @@
+---
+title: "Analysis4ABCDE_PNICO_importance_feature.Rmd"
+author: "Xiaochun Han"
+date: "2025-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+rm(list = ls())
+source("../utils/functions_library.R")
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","kableExtra","lime","ggbeeswarm"))
+```
+
+## Feature importance read
+```{r read_feat_impor}
+fi_fs_invest <- readRDS("fi_all_invest_WNS_BNS_5000.RData")
+acc_ins_bins <- 0.9212
+
+# 预分配结果向量（确保是数值型）
+dec_acc <- numeric(length = 112)
+ste_acc <- numeric(length = 112)
+
+# 自定义标准误函数[1,7](@ref)
+stderr <- function(x) {
+  sd(x, na.rm = TRUE) / sqrt(length(na.omit(x)))
+}
+
+for (v in 1:length(fi_fs_invest)) {
+  # 提取当前acc_perm数据
+  current_acc_perm <- fi_fs_invest[[v]][[2]]$acc_perm
+  
+  # 计算均值差（注意运算顺序）[1](@ref)
+  dec_acc[v] <- (acc_ins_bins - mean(current_acc_perm, na.rm = TRUE)) * 100
+  
+  # 计算标准误（先计算标准误，再乘以100）[7](@ref)
+  ste_acc[v] <- stderr(current_acc_perm) * 100
+}
+
+# 创建结果数据框
+fi_all <- data.frame(
+  name = names(fi_fs_invest),
+  fi_value_percent = dec_acc,
+  ste_value_percent = ste_acc
+)
+```
+
+## Top features
+### Feature selection
+```{r fi-select}
+threshold_value <- mean(fi_all$fi_value_percent) + sd(fi_all$fi_value_percent)
+
+filtered_fi <- fi_all %>%
+  filter(fi_value_percent > threshold_value) %>%  
+  arrange(desc(fi_value_percent))
+```
+
+### figure
+```{r figure_top14}
+df <- as.data.frame(filtered_dec_acc_dist)
+
+# 转换数据为长格式
+df_long <- melt(df, variable.name = "Variable", value.name = "Value")
+
+ggplot(df_long, aes(x = Value)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "lightblue", alpha = 0.7) +
+  geom_density(color = "red", size = 1) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) +  # 3列布局
+  labs(title = "14个变量的分布直方图和密度曲线", 
+       x = "数值", 
+       y = "密度") +
+  theme_bw()
+```
+
+## Directional influence
+### LIME analysis
+```{r lime,eval=FALSE}
+data_WNS_BNS_invest_selected = data_WNS_BNS_invest %>%
+  select(c(any_of(as.character(filtered_fi$name)), "good_1")) %>%
+  relocate("good_1", .before = 1)
+weight = svm_lime(data_WNS_BNS_invest_selected,2,"yes",14,"none")
+```
+
+### figure
+```{r figure}
+weight = readRDS("svm_win_WNS_BNS_lime_separate_2bin_yes_14_none.RData")
+
+for (i in 1:3) {
+    current_mean <- mean(weight$feature_weight, na.rm = TRUE)
+    current_sd <- sd(weight$feature_weight, na.rm = TRUE)
+    upper_lim <- current_mean + 3 * current_sd
+    lower_lim <- current_mean - 3 * current_sd
+    
+    na_before <- sum(is.na(weight$feature_weight))
+    weight$feature_weight[weight$feature_weight > upper_lim | weight$feature_weight < lower_lim] <- NA
+    new_na <- sum(is.na(weight$feature_weight)) - na_before
+    
+    cat("第", i, "轮: 均值=", round(current_mean, 4), "SD=", round(current_sd, 4),
+        "新增异常值=", new_na, "\n")
+  }
+  
+  cat("最终NA值数量:", sum(is.na(weight$feature_weight)), "\n")
+
+my_custom_order <- c(
+  'BNS_Attack_L_rDLPFC_CH12',
+  'WNS_Attack_F_rDLPFC_CH12',
+  'WNS_Attack_F_rDLPFC_CH14',
+  'WNS_Attack_F_rDLPFC_CH11',
+  'WNS_Attack_L_rDLPFC_CH06',
+  'WNS_Attack_F_rDLPFC_CH02',
+  'BNS_Attack_L_rDLPFC_CH14',
+  'WNS_Attack_L_rDLPFC_CH14',
+  'BNS_Attack_L_rDLPFC_CH11',
+  'WNS_Defend_L_rDLPFC_CH14',
+  'BNS_Defend_L_rTPJ_CH13',
+  'BNS_Defend_L_rTPJ_CH09',
+  'BNS_Attack_F_rTPJ_CH13',
+  'WNS_Attack_L_rTPJ_CH09')
+
+weight$feature <- factor(weight$feature, levels = my_custom_order)
+
+weight$type[weight$feature_value > 0] = 'pos'
+weight$type[weight$feature_value < 0] = 'neg'
+
+ggplot(weight, aes(x = feature, y = feature_weight, color = feature_value))+
+  geom_hline(yintercept = 0) +
+  geom_quasirandom(bandwidth = 0.1,size = 3) + 
+  scale_fill_manual(values = c("white", "white"))+
+  scale_color_gradientn(colours = c('#1F4E79', '#2E75B6','white','#D96F6F','#931624'),limits = c(-5, 5),breaks = c(-5, 0, 5)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
