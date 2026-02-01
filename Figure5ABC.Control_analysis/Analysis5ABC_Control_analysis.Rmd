@@ -30,7 +30,26 @@ p<-ggplot(dataset_pseudo, aes(x = (perm_acc-acc_all), fill = as.factor(ci95))) +
     geom_vline(aes(xintercept = 0), color = "#4C4C4C", linewidth = 1, linetype = "dashed") + 
     labs(x = "Decreased Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
-ggsave("Pseudo_pair_control.png", plot = p, width = 5, height = 4, dpi = 300)
+ggsave("Pseudo_pair_control_all.png", plot = p, width = 5, height = 4, dpi = 300)
+```
+
+## Pseudo_pair_control_all
+```{r permute_pseudo}
+dataset_pseudo <- read.csv('Pseudo_pair_control_all.csv',header=TRUE,sep=",")
+acc_low_25 = sort(dataset_pseudo$perm_acc)[25]
+acc_top_25 = sort(dataset_pseudo$perm_acc)[975]
+dataset_pseudo$ci95 = rep(0,1000)
+dataset_pseudo$ci95[(dataset_pseudo$perm_acc<acc_low_25|dataset_pseudo$perm_acc>acc_top_25)] = 1
+acc_all = 0.9212
+p_perm = mean(acc_all<dataset_pseudo$perm_acc)
+print(p_perm)
+
+p<-ggplot(dataset_pseudo, aes(x = (perm_acc), fill = as.factor(ci95))) +
+    geom_histogram(colour = "#4C4C4C", bins = 30) + 
+    scale_fill_manual(values = c("white","#B095C6"))+ theme_classic()+xlim(0,1) +
+    labs(x = "Pseudo-pair Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+print(p)
+ggsave("Pseudo_pair_control_all.png", plot = p, width = 5, height = 4, dpi = 300)
 ```
 
 ## Circular_time_control

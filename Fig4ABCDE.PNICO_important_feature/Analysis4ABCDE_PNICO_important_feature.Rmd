@@ -22,8 +22,8 @@ dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
 dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
 dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
 
-WNS_mean = extract_win_or_pay_mean(dataset_WNS,dataset_y_attack,"WNS_","win",FALSE)
-BNS_mean = extract_win_or_pay_mean(dataset_BNS,dataset_y_attack,"BNS_","win",FALSE)
+WNS_mean = extract_win_or_pay_mean(dataset_WNS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BNS_mean = extract_win_or_pay_mean(dataset_BNS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 data_WNS_BNS_invest = cbind(WNS_mean[,c(1,3:ncol(WNS_mean))],BNS_mean[,3:ncol(BNS_mean)])
 ```
 
@@ -97,7 +97,7 @@ summary_data <- df %>% group_by(feature) %>% summarize(Mean = mean(value), SE = 
 p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
   geom_hline(aes(yintercept = 0), color = "black", linewidth = 0.8, linetype = 1) +
   geom_col(width = 0.6, color = "black") +
-  scale_fill_manual(values = c("#0D0D0D","#BFBFBF"))+
+  scale_fill_manual(values = c("#946CFF","#595959"))+
   geom_jitter(
     data = df,
     aes(y = value, x = feature),
@@ -113,7 +113,9 @@ p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
   )  +
   theme_classic()+
   theme(legend.position = "none")
+png('fi_A_vs_D.png', width = 4, height = 4, units = "in", res = 300)  # 300DPI高清图片
 print(p)
+dev.off()
 ```
 
 ## Leader vs. Follower

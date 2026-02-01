@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
 rm(list = ls())
 source("../utils/functions_library.R")
-load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","kableExtra","lime","ggbeeswarm"))
+load_packages(c("dplyr", "ggplot2", "tidyr","purrr"))
 ```
 
 ## Feature importance read
@@ -73,88 +73,85 @@ filtered_fi_sorted <- filtered_fi %>%
   arrange(desc(fi_value_percent)) %>%  # 按fi_value_percent降序排列
   mutate(name = factor(name, levels = name))  %>%
   mutate(category = ifelse(grepl("WNS", name), "WNS", 
-                          ifelse(grepl("BNS", name), "BNS", "Other")))
+                          ifelse(grepl("BNS", name), "BNS", "Other")))%>%
+  mutate(border = ifelse(grepl("rDLPFC", name), "black",NA))
 
 
-ggplot(filtered_fi_sorted, aes(x = name, y = fi_value_percent)) +
-  # 添加误差线（95%置信区间）
-  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), 
-                width = 0.2, color = "darkred", size = 0.7) +
-  # 添加均值点，按WNS/BNS分类着色
-  geom_point(aes(color = category), size = 1, shape = 21, fill = "white", stroke = 1.2) +
-  # 设置颜色映射
-  scale_color_manual(values = c("WNS" = "#E69F00", "BNS" = "#56B4E9", "Other" = "#999999"),
-                     name = "变量类型") +
+p<-ggplot(filtered_fi_sorted, aes(x = name, y = fi_value_percent)) +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper, color = category), 
+                width = 0, size = 0.7) +
+  geom_point(aes(fill = category, color = category), size = 3, shape = 22, stroke = 1.2, alpha = 1) +
+  scale_fill_manual(values = c("WNS" = "#E69F00", "BNS" = "#56B4E9"),  # 浅色填充
+                   name = "变量类型") +
+  scale_color_manual(values = c("WNS" = "#E69F00", "BNS" = "#56B4E9"),  # 深色边框
+                    name = "变量类型") +
   # 设置纵坐标范围从0开始
-  scale_y_continuous(limits = c(0, max(filtered_fi_sorted$ci_upper, na.rm = TRUE) * 1.1),
-                     expand = c(0, 0)) +
+  #scale_y_continuous(limits = c(0, max(filtered_fi_sorted$ci_upper, na.rm = TRUE) * 1.1),
+                     #expand = c(0, 0)) +
   # 设置坐标轴标签和标题
-  labs(title = "各变量均值与95%置信区间分布图",
-       x = "变量名称",
-       y = "fi_value_percent (%)",
-       caption = "点表示均值，误差线表示95%置信区间") +
+  #labs(title = "各变量均值与95%置信区间分布图",
+  #     x = "变量名称",
+  #     y = "fi_value_percent (%)",
+  #     caption = "点表示均值，误差线表示95%置信区间") +
   # 调整主题样式
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 10),
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom")  # 图例放在底部
+print(p)
+ggsave("top14_features.png", plot = p, width = 5, height = 5, dpi = 300)
+```
+
+```{r figure_top14}
+# 读取数据
+fi_fs_invest <- readRDS("fi_all_invest_WNS_BNS_5000.RData")
+acc_ins_bins <- 0.9212
+
+# 计算阈值并筛选top features
+threshold_value <- mean(fi_all$fi_value_percent) + sd(fi_all$fi_value_percent)
+filtered_fi <- fi_all %>%
+  filter(fi_value_percent > threshold_value) %>%  
+  arrange(desc(fi_value_percent))
+
+# 提取原始数据并计算每个观测值的差异
+filtered_data_list <- map(filtered_fi$name, function(var_name) {
+  # 找到变量在原始列表中的位置
+  v_index <- which(names(fi_fs_invest) == var_name)
+  
+  if (length(v_index) > 0) {
+    # 计算每个观测值的差异 (acc_ins_bins - acc_perm) * 100
+    diff_values <- (acc_ins_bins - fi_fs_invest[[v_index]][[2]]$acc_perm) * 100
+    
+    # 创建数据框
+    data.frame(
+      name = var_name,
+      value = diff_values,
+      category = ifelse(grepl("WNS", var_name), "WNS", 
+                       ifelse(grepl("BNS", var_name), "BNS", "Other"))
+    )
+  }
+})
+
+# 合并所有数据
+filtered_data_long <- bind_rows(filtered_data_list) %>%
+  mutate(name = factor(name, levels = filtered_fi$name))  # 保持排序顺序
+
+# 绘制箱线图
+ggplot(filtered_data_long, aes(x = name, y = value)) +
+  geom_boxplot(aes(fill = category), outlier.size = 0.5, alpha = 0.8, outlier.alpha = 0) +
+  scale_fill_manual(values = c("WNS" = "#E69F00", "BNS" = "#56B4E9", "Other" = "#999999"),
+                   name = "变量类型") +
+  labs(title = paste("Top Features箱线图 (阈值:", round(threshold_value, 2), ")"),
+       x = "变量名称", 
+       y = "fi_value_percent (%)",
+       caption = paste("展示了", nrow(filtered_fi), "个超过阈值的特征分布")) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
         plot.title = element_text(hjust = 0.5, face = "bold"),
-        legend.position = "bottom")  # 图例放在底部
-```
+        legend.position = "bottom")
 
-## Directional influence
-### LIME analysis
-```{r lime,eval=FALSE}
-data_WNS_BNS_invest_selected = data_WNS_BNS_invest %>%
-  select(c(any_of(as.character(filtered_fi$name)), "good_1")) %>%
-  relocate("good_1", .before = 1)
-weight = svm_lime(data_WNS_BNS_invest_selected,2,"yes",14,"none")
-```
-
-### figure
-```{r figure}
-weight = readRDS("svm_win_WNS_BNS_lime_separate_2bin_yes_14_none.RData")
-
-for (i in 1:3) {
-    current_mean <- mean(weight$feature_weight, na.rm = TRUE)
-    current_sd <- sd(weight$feature_weight, na.rm = TRUE)
-    upper_lim <- current_mean + 3 * current_sd
-    lower_lim <- current_mean - 3 * current_sd
-    
-    na_before <- sum(is.na(weight$feature_weight))
-    weight$feature_weight[weight$feature_weight > upper_lim | weight$feature_weight < lower_lim] <- NA
-    new_na <- sum(is.na(weight$feature_weight)) - na_before
-    
-    cat("第", i, "轮: 均值=", round(current_mean, 4), "SD=", round(current_sd, 4),
-        "新增异常值=", new_na, "\n")
-  }
-  
-  cat("最终NA值数量:", sum(is.na(weight$feature_weight)), "\n")
-
-my_custom_order <- c(
-  'BNS_Attack_L_rDLPFC_CH12',
-  'WNS_Attack_F_rDLPFC_CH12',
-  'WNS_Attack_F_rDLPFC_CH14',
-  'WNS_Attack_F_rDLPFC_CH11',
-  'WNS_Attack_L_rDLPFC_CH06',
-  'WNS_Attack_F_rDLPFC_CH02',
-  'BNS_Attack_L_rDLPFC_CH14',
-  'WNS_Attack_L_rDLPFC_CH14',
-  'BNS_Attack_L_rDLPFC_CH11',
-  'WNS_Defend_L_rDLPFC_CH14',
-  'BNS_Defend_L_rTPJ_CH13',
-  'BNS_Defend_L_rTPJ_CH09',
-  'BNS_Attack_F_rTPJ_CH13',
-  'WNS_Attack_L_rTPJ_CH09')
-
-weight$feature <- factor(weight$feature, levels = my_custom_order)
-
-weight$type[weight$feature_value > 0] = 'pos'
-weight$type[weight$feature_value < 0] = 'neg'
-
-ggplot(weight, aes(x = feature, y = feature_weight, color = feature_value))+
-  geom_hline(yintercept = 0) +
-  geom_quasirandom(bandwidth = 0.1,size = 3) + 
-  scale_fill_manual(values = c("white", "white"))+
-  scale_color_gradientn(colours = c('#1F4E79', '#2E75B6','white','#D96F6F','#931624'),limits = c(-5, 5),breaks = c(-5, 0, 5)) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# 显示筛选结果摘要
+cat("阈值:", threshold_value, "\n")
+cat("筛选出的特征数量:", nrow(filtered_fi), "\n")
+cat("特征名称:", paste(filtered_fi$name, collapse = ", "), "\n")
 ```
