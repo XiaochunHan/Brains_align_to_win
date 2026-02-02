@@ -64,7 +64,7 @@ acc_wns_bns = svm_general_accuracy(data1_INS_BINS_invest,data2_INS_BINS_invest)
 ```
 ### AUC
 ```{r svm_auc_both}
-auc_wns_bns = svm_general_auc(data1_INS_BINS_invest,data2_INS_BINS_invest,cond_col = "#FF7E79",filename = 'general_both_gender_roc_plot.png')
+auc_wns_bns = svm_general_auc2(data1_INS_BINS_invest,data2_INS_BINS_invest,cond_col = "#FF7E79",filename = 'general_both_gender_roc_plot.png', ci_span = 0.5)
 ```
 
 ### Permutation

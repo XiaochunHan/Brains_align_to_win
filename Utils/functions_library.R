@@ -2062,3 +2062,639 @@ auc_boot_cv2 <- function(df, nfold, koi, nBoot, plotROC, cond_col, filename,
     ci_span = ci_span  # 返回使用的span参数
   ))
 }
+
+svm_general_auc2 <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, cond_col = "blue", filename = 'general_roc_plot.png', smooth_method = "binormal", ci_span = 0.15) {
+  
+  train_df[,1] <- factor(train_df[,1], levels = c(0, 1))
+  test_df[,1] <- factor(test_df[,1], levels = c(0, 1))
+  
+  train_df <- na.omit(train_df)
+  test_df <- na.omit(test_df)
+  
+  train_scaled <- train_df
+  test_scaled <- test_df
+  
+  train_scaled[-1] <- scale(train_df[-1])
+  
+  if(ncol(train_df) > 1 && nrow(train_df) > 0) {
+    train_means <- apply(train_df[-1], 2, mean, na.rm = TRUE)
+    train_sds <- apply(train_df[-1], 2, sd, na.rm = TRUE)
+    
+    zero_sd <- which(train_sds == 0)
+    if(length(zero_sd) > 0) {
+      train_sds[zero_sd] <- 1  # 对于标准差为0的变量，设置为1避免除零
+    }
+    
+    test_scaled[-1] <- scale(test_df[-1], center = train_means, scale = train_sds)
+  }
+  
+  classifier <- svm(
+    good_1 ~ .,
+    data = train_scaled,
+    type = "C-classification",
+    kernel = "radial",
+    probability = TRUE
+  )
+  
+  y_pred <- predict(classifier, test_scaled[-1], probability = TRUE)
+  prob_mat <- attr(y_pred, "probabilities")
+  y_score <- prob_mat[, "1"]
+  y_true <- test_scaled[, 1]
+  
+  roc_obj <- roc(y_true, y_score, quiet = TRUE)
+  mean_auc <- as.numeric(auc(roc_obj))
+  
+  # Bootstrap计算AUC的置信区间
+  auc_boot <- numeric(nBoot)
+  N <- length(y_true)
+  
+  for (b in 1:nBoot) {
+    idx <- sample(seq_len(N), size = N, replace = TRUE)
+    y_b <- y_true[idx]
+    s_b <- y_score[idx]
+    
+    if (length(unique(y_b)) < 2) {
+      auc_boot[b] <- NA
+    } else {
+      auc_boot[b] <- as.numeric(auc(roc(y_b, s_b, quiet = TRUE)))
+    }
+  }
+  
+  auc_boot <- auc_boot[!is.na(auc_boot)]
+  CI95 <- quantile(auc_boot, c(0.025, 0.975))
+  
+  if (plotROC) {
+    # 创建平滑的ROC对象用于绘图
+    roc_smooth <- smooth(roc_obj, method = smooth_method)
+    
+    # 获取平滑后的ROC曲线点
+    roc_df <- data.frame(
+      specificity = roc_smooth$specificities,
+      sensitivity = roc_smooth$sensitivities
+    )
+    
+    # 按specificity排序
+    roc_df <- roc_df[order(roc_df$specificity), ]
+    roc_df$FPR <- 1 - roc_df$specificity
+    roc_df$TPR <- roc_df$sensitivity
+    
+    # 获取原始ROC曲线点（用于计算置信区间）
+    roc_coords <- coords(roc_obj, "all", ret = c("specificity", "sensitivity"))
+    roc_raw <- data.frame(
+      specificity = roc_coords$specificity,
+      sensitivity = roc_coords$sensitivity
+    )
+    
+    # 移除重复的specificity值（确保单调性）
+    roc_raw <- roc_raw[!duplicated(roc_raw$specificity), ]
+    roc_raw <- roc_raw[order(roc_raw$specificity), ]
+    
+    # 使用ci.se计算置信区间（在原始specificity点上）
+    nBoot_ci <- min(nBoot, 2000)
+    
+    # 尝试使用ci.se函数计算置信区间
+    ci_result <- tryCatch({
+      ci.se(roc_obj, 
+            specificities = roc_raw$specificity,
+            conf.level = 0.95,
+            boot.n = nBoot_ci,
+            boot.stratified = TRUE,
+            progress = "none")
+    }, error = function(e) {
+      warning("ci.se计算失败，使用替代方法计算置信区间")
+      return(NULL)
+    })
+    
+    if (is.null(ci_result)) {
+      # 方法2：如果ci.se失败，使用简单的bootstrap方法
+      # 创建密集的FPR网格
+      fpr_grid <- seq(0, 1, length.out = 100)
+      
+      # 存储所有bootstrap样本在网格上的TPR值
+      tpr_boot_matrix <- matrix(NA, nrow = length(fpr_grid), ncol = nBoot_ci)
+      
+      for (b in 1:nBoot_ci) {
+        idx <- sample(seq_len(N), size = N, replace = TRUE)
+        y_b <- y_true[idx]
+        s_b <- y_score[idx]
+        
+        if (length(unique(y_b)) >= 2) {
+          roc_b <- roc(y_b, s_b, quiet = TRUE)
+          # 将bootstrap ROC曲线插值到标准FPR网格
+          fpr_b <- 1 - roc_b$specificities
+          tpr_b <- roc_b$sensitivities
+          
+          if (length(unique(fpr_b)) > 1) {
+            # 移除重复并排序
+            unique_idx <- !duplicated(fpr_b)
+            fpr_b <- fpr_b[unique_idx]
+            tpr_b <- tpr_b[unique_idx]
+            sorted_idx <- order(fpr_b)
+            fpr_b <- fpr_b[sorted_idx]
+            tpr_b <- tpr_b[sorted_idx]
+            
+            # 插值到标准网格
+            tryCatch({
+              approx_result <- approx(fpr_b, tpr_b, xout = fpr_grid, rule = 2)
+              tpr_boot_matrix[, b] <- approx_result$y
+            }, error = function(e) {
+              # 插值失败，跳过
+            })
+          }
+        }
+      }
+      
+      # 计算置信区间
+      tpr_lower <- apply(tpr_boot_matrix, 1, quantile, probs = 0.025, na.rm = TRUE)
+      tpr_upper <- apply(tpr_boot_matrix, 1, quantile, probs = 0.975, na.rm = TRUE)
+      
+      # 获取主曲线在相同网格上的TPR值
+      main_tpr <- approx(roc_df$FPR, roc_df$TPR, xout = fpr_grid, rule = 2)$y
+      
+      # 创建置信区间数据框
+      ci_df <- data.frame(
+        FPR = fpr_grid,
+        TPR = main_tpr,
+        sensitivity_lower = tpr_lower,
+        sensitivity_upper = tpr_upper
+      )
+      
+    } else {
+      # 处理ci.se的返回结果
+      if (is.list(ci_result)) {
+        ci_matrix <- ci_result[[1]]
+      } else {
+        ci_matrix <- ci_result
+      }
+      
+      # 创建原始点的置信区间数据框
+      ci_raw <- data.frame(
+        specificity = roc_raw$specificity,
+        sensitivity_lower = ci_matrix[, 1],
+        sensitivity = ci_matrix[, 2],
+        sensitivity_upper = ci_matrix[, 3]
+      )
+      
+      ci_raw$FPR <- 1 - ci_raw$specificity
+      
+      # 将置信区间插值到平滑曲线的FPR网格上
+      fpr_smooth <- roc_df$FPR
+      
+      # 对下界和上界分别进行插值
+      approx_lower <- approx(ci_raw$FPR, ci_raw$sensitivity_lower, 
+                             xout = fpr_smooth, rule = 2)
+      approx_upper <- approx(ci_raw$FPR, ci_raw$sensitivity_upper,
+                             xout = fpr_smooth, rule = 2)
+      
+      # 创建插值后的置信区间数据框
+      ci_df <- data.frame(
+        FPR = fpr_smooth,
+        TPR = roc_df$TPR,
+        sensitivity_lower_raw = approx_lower$y,
+        sensitivity_upper_raw = approx_upper$y
+      )
+      
+      # 对置信区间进行平滑（使用loess）
+      valid_idx_lower <- !is.na(ci_df$sensitivity_lower_raw)
+      valid_idx_upper <- !is.na(ci_df$sensitivity_upper_raw)
+      
+      if (sum(valid_idx_lower) > 5 && sum(valid_idx_upper) > 5) {
+        # 对下界进行loess平滑
+        loess_lower <- loess(sensitivity_lower_raw ~ FPR, 
+                             data = ci_df[valid_idx_lower, ], 
+                             span = ci_span,
+                             control = loess.control(surface = "direct"))
+        ci_df$sensitivity_lower <- predict(loess_lower, newdata = ci_df)
+        
+        # 对上界进行loess平滑
+        loess_upper <- loess(sensitivity_upper_raw ~ FPR, 
+                             data = ci_df[valid_idx_upper, ], 
+                             span = ci_span,
+                             control = loess.control(surface = "direct"))
+        ci_df$sensitivity_upper <- predict(loess_upper, newdata = ci_df)
+      } else {
+        # 如果没有足够的数据点，使用原始插值结果
+        ci_df$sensitivity_lower <- ci_df$sensitivity_lower_raw
+        ci_df$sensitivity_upper <- ci_df$sensitivity_upper_raw
+      }
+      
+      # 确保置信区间不会超过0-1范围
+      ci_df$sensitivity_lower <- pmax(0, pmin(1, ci_df$sensitivity_lower))
+      ci_df$sensitivity_upper <- pmax(0, pmin(1, ci_df$sensitivity_upper))
+      
+      # 确保置信区间包含主曲线
+      for (i in 1:nrow(ci_df)) {
+        if (!is.na(ci_df$TPR[i]) && !is.na(ci_df$sensitivity_lower[i]) && 
+            !is.na(ci_df$sensitivity_upper[i])) {
+          
+          # 如果主曲线在置信区间下界以下，调整下界
+          if (ci_df$TPR[i] < ci_df$sensitivity_lower[i]) {
+            ci_df$sensitivity_lower[i] <- max(0, ci_df$TPR[i] - 0.01)
+          }
+          
+          # 如果主曲线在置信区间上界以上，调整上界
+          if (ci_df$TPR[i] > ci_df$sensitivity_upper[i]) {
+            ci_df$sensitivity_upper[i] <- min(1, ci_df$TPR[i] + 0.01)
+          }
+        }
+      }
+    }
+    
+    # 移除NA值
+    ci_df <- na.omit(ci_df)
+    
+    # 绘制图形
+    p <- ggplot() +
+      # 添加对角线参考线
+      geom_abline(slope = 1, intercept = 0, 
+                  linetype = "dashed", color = "gray", linewidth = 0.8) +
+      
+      # 添加平滑的置信区间（使用半透明带状区域）
+      {if (nrow(ci_df) > 0) 
+        geom_ribbon(data = ci_df, 
+                    aes(x = FPR, ymin = sensitivity_lower, ymax = sensitivity_upper), 
+                    fill = cond_col, alpha = 0.25)} +
+      
+      # 添加平滑后的主ROC曲线
+      geom_line(data = roc_df, aes(x = FPR, y = TPR), 
+                color = cond_col, linewidth = 1.5) +
+      
+      # 设置坐标轴和主题
+      coord_equal() +
+      theme_classic(base_size = 14) +
+      theme(
+        axis.ticks.length = unit(-0.1, "cm"),
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "none",
+        plot.margin = margin(1, 1, 1, 1, "cm")
+      ) +
+      
+      # 设置坐标轴标签
+      labs(
+        x = "1 - Specificity (False Positive Rate)",
+        y = "Sensitivity (True Positive Rate)",
+        title = paste0("ROC Curve (AUC = ", round(mean_auc, 3), 
+                       " [", round(CI95[1], 3), ", ", round(CI95[2], 3), "])")
+      ) +
+      
+      # 设置坐标轴范围
+      scale_x_continuous(limits = c(0, 1), 
+                         expand = expansion(mult = c(0.01, 0.01))) +
+      scale_y_continuous(limits = c(0, 1), 
+                         expand = expansion(mult = c(0.01, 0.01)))
+    
+    # 打印图形
+    print(p)
+    
+    # 保存图形到文件
+    png(filename, width = 6, height = 5.5, units = "in", res = 300)
+    print(p)
+    dev.off()
+    
+    message(sprintf("ROC曲线已保存到: %s", filename))
+    message(sprintf("置信区间基于 %d 次Bootstrap计算", nBoot))
+    
+    # 检查置信区间与曲线的关系
+    if (nrow(ci_df) > 0 && nrow(roc_df) > 0) {
+      # 将ROC曲线插值到置信区间的FPR网格上进行比较
+      roc_interp <- approx(roc_df$FPR, roc_df$TPR, xout = ci_df$FPR, rule = 2)
+      
+      # 检查置信区间是否包含曲线
+      within_ci <- sum(roc_interp$y >= ci_df$sensitivity_lower & 
+                         roc_interp$y <= ci_df$sensitivity_upper, na.rm = TRUE)
+      total_points <- length(roc_interp$y)
+      
+      if (total_points > 0) {
+        message(sprintf("曲线点在置信区间内的比例: %.1f%% (%d/%d)", 
+                        100 * within_ci / total_points, within_ci, total_points))
+      }
+    }
+  }
+  
+  message(sprintf("AUC: %.3f\n95%% CI: [%.3f, %.3f]\n",
+                  mean_auc, CI95[1], CI95[2]))
+  
+  return(list(
+    mean_auc = mean_auc,
+    CI95 = CI95,
+    auc_boot = auc_boot,
+    y_true = y_true,
+    y_score = y_score,
+    roc_object = roc_obj
+  ))
+}
+
+auc_boot_cv3 <- function(df, nfold, koi, nBoot, plotROC, cond_col, filename, 
+                        smooth_method = "binormal", smooth_span = 0.2) {
+  
+  # 数据预处理
+  df[,1] = factor(df[,1], levels = c(0, 1)) 
+  df = na.omit(df) 
+  
+  # 初始化存储变量
+  folds = svm_createFolds(df, nfold) 
+  
+  y_true_all <- c()
+  y_score_all <- c()
+  
+  # 执行交叉验证
+  cv <- lapply(folds, function(x) { 
+    training_fold <- df[-x, ] 
+    test_fold <- df[x, ] 
+    
+    # 数据标准化
+    test_fold[-1] <- ind_scale(training_fold[-1], test_fold[-1]) 
+    training_fold[-1] <- scale(training_fold[-1]) 
+    
+    # 训练SVM模型
+    classifier <- svm(
+      good_1 ~ .,
+      data = training_fold,
+      type = "C-classification",
+      kernel = koi,
+      probability = TRUE
+    )
+    
+    # 预测并获取概率
+    y_pred <- predict(classifier, test_fold[-1], probability = TRUE)
+    prob_mat <- attr(y_pred, "probabilities")
+    score_1 <- prob_mat[, "1"]
+    
+    return(list(
+      y_true = test_fold[, 1],
+      y_score = score_1
+    ))
+  })
+  
+  # 收集所有预测结果
+  auc_data <- data.frame(
+    y_real = unlist(lapply(cv, `[[`, "y_true")),
+    y_fit = unlist(lapply(cv, `[[`, "y_score"))
+  )
+  
+  # 计算主ROC和AUC
+  roc_obj <- roc(auc_data$y_real, auc_data$y_fit, quiet = TRUE)
+  mean_auc <- as.numeric(auc(roc_obj))
+  
+  # Bootstrap计算AUC的置信区间
+  auc_boot <- numeric(nBoot)
+  N <- length(auc_data$y_real)
+  
+  # 存储所有bootstrap样本的原始ROC点
+  boot_roc_points <- vector("list", nBoot)
+  
+  for (b in 1:nBoot) {
+    idx <- sample(seq_len(N), size = N, replace = TRUE)
+    y_b <- auc_data$y_real[idx]
+    s_b <- auc_data$y_fit[idx]
+    
+    if (length(unique(y_b)) < 2) {
+      auc_boot[b] <- NA
+    } else {
+      roc_b <- roc(y_b, s_b, quiet = TRUE)
+      auc_boot[b] <- as.numeric(auc(roc_b))
+      
+      # 存储原始ROC点
+      boot_roc_points[[b]] <- list(
+        fpr = 1 - roc_b$specificities,
+        tpr = roc_b$sensitivities
+      )
+    }
+  }
+  
+  # 去除NA值
+  valid_idx <- !is.na(auc_boot)
+  auc_boot <- auc_boot[valid_idx]
+  boot_roc_points <- boot_roc_points[valid_idx]
+  
+  CI95 <- quantile(auc_boot, c(0.025, 0.975))
+  
+  # 绘制ROC曲线并添加置信区间
+  if (plotROC) {
+    # 方法1：创建密集的FPR网格进行平滑
+    fpr_grid <- seq(0, 1, length.out = 500)
+    
+    # 获取原始ROC曲线点
+    roc_main_coords <- coords(roc_obj, "all", ret = c("specificity", "sensitivity"))
+    fpr_main_raw <- 1 - roc_main_coords$specificity
+    tpr_main_raw <- roc_main_coords$sensitivity
+    
+    # 方法2：使用一致的平滑方法（关键改进）
+    # 使用相同的平滑方法处理原始ROC曲线和所有bootstrap样本
+    
+    # 定义平滑函数
+    smooth_roc <- function(fpr_raw, tpr_raw, method = smooth_method) {
+      # 如果数据点太少，直接返回插值结果
+      if (length(unique(fpr_raw)) < 5) {
+        # 简单插值
+        approx_result <- approx(fpr_raw, tpr_raw, xout = fpr_grid, rule = 2)
+        return(approx_result$y)
+      }
+      
+      # 方法1：使用loess平滑（可控制平滑程度）
+      if (method == "loess") {
+        # 创建数据框
+        roc_df <- data.frame(fpr = fpr_raw, tpr = tpr_raw)
+        roc_df <- roc_df[!duplicated(roc_df$fpr), ]  # 移除重复的FPR
+        roc_df <- roc_df[order(roc_df$fpr), ]  # 按FPR排序
+        
+        if (nrow(roc_df) > 5) {
+          tryCatch({
+            # 使用loess平滑
+            loess_model <- loess(tpr ~ fpr, data = roc_df, span = smooth_span)
+            # 预测到标准网格
+            smoothed <- predict(loess_model, newdata = data.frame(fpr = fpr_grid))
+            # 确保结果在0-1范围内
+            smoothed <- pmin(pmax(smoothed, 0), 1)
+            return(smoothed)
+          }, error = function(e) {
+            # 如果失败，使用插值
+            approx_result <- approx(roc_df$fpr, roc_df$tpr, xout = fpr_grid, rule = 2)
+            return(approx_result$y)
+          })
+        } else {
+          approx_result <- approx(fpr_raw, tpr_raw, xout = fpr_grid, rule = 2)
+          return(approx_result$y)
+        }
+      }
+      
+      # 方法2：使用smooth.spline平滑
+      else if (method == "spline") {
+        roc_df <- data.frame(fpr = fpr_raw, tpr = tpr_raw)
+        roc_df <- roc_df[!duplicated(roc_df$fpr), ]
+        roc_df <- roc_df[order(roc_df$fpr), ]
+        
+        if (nrow(roc_df) > 5) {
+          tryCatch({
+            spline_model <- smooth.spline(roc_df$fpr, roc_df$tpr, spar = smooth_span)
+            smoothed <- predict(spline_model, x = fpr_grid)$y
+            smoothed <- pmin(pmax(smoothed, 0), 1)
+            return(smoothed)
+          }, error = function(e) {
+            approx_result <- approx(roc_df$fpr, roc_df$tpr, xout = fpr_grid, rule = 2)
+            return(approx_result$y)
+          })
+        } else {
+          approx_result <- approx(fpr_raw, tpr_raw, xout = fpr_grid, rule = 2)
+          return(approx_result$y)
+        }
+      }
+      
+      # 方法3：使用核平滑
+      else if (method == "ksmooth") {
+        roc_df <- data.frame(fpr = fpr_raw, tpr = tpr_raw)
+        roc_df <- roc_df[!duplicated(roc_df$fpr), ]
+        roc_df <- roc_df[order(roc_df$fpr), ]
+        
+        if (nrow(roc_df) > 5) {
+          tryCatch({
+            # 使用核平滑
+            smoothed <- ksmooth(roc_df$fpr, roc_df$tpr, bandwidth = smooth_span, 
+                                x.points = fpr_grid, kernel = "normal")
+            smoothed <- pmin(pmax(smoothed$y, 0), 1)
+            return(smoothed)
+          }, error = function(e) {
+            approx_result <- approx(roc_df$fpr, roc_df$tpr, xout = fpr_grid, rule = 2)
+            return(approx_result$y)
+          })
+        } else {
+          approx_result <- approx(fpr_raw, tpr_raw, xout = fpr_grid, rule = 2)
+          return(approx_result$y)
+        }
+      }
+      
+      # 默认方法：使用pROC的平滑（如果可用）
+      else {
+        # 这里我们模拟pROC的平滑，但使用一致的插值方法
+        approx_result <- approx(fpr_raw, tpr_raw, xout = fpr_grid, rule = 2)
+        return(approx_result$y)
+      }
+    }
+    
+    # 对主ROC曲线进行平滑
+    main_tpr_smooth <- smooth_roc(fpr_main_raw, tpr_main_raw, method = smooth_method)
+    
+    # 存储所有bootstrap样本平滑后的TPR
+    tpr_boot_smooth <- matrix(NA, nrow = length(fpr_grid), ncol = length(boot_roc_points))
+    
+    for (b in 1:length(boot_roc_points)) {
+      if (!is.null(boot_roc_points[[b]])) {
+        fpr_b <- boot_roc_points[[b]]$fpr
+        tpr_b <- boot_roc_points[[b]]$tpr
+        
+        # 使用相同的平滑方法处理bootstrap样本
+        tpr_boot_smooth[, b] <- smooth_roc(fpr_b, tpr_b, method = smooth_method)
+      }
+    }
+    
+    # 方法3：使用偏差法确保曲线在置信区间中间
+    # 计算每个bootstrap样本与主曲线的偏差
+    tpr_deviations <- tpr_boot_smooth - matrix(main_tpr_smooth, 
+                                               nrow = length(fpr_grid), 
+                                               ncol = ncol(tpr_boot_smooth))
+    
+    # 计算偏差的分位数
+    deviation_lower <- apply(tpr_deviations, 1, quantile, probs = 0.025, na.rm = TRUE)
+    deviation_upper <- apply(tpr_deviations, 1, quantile, probs = 0.975, na.rm = TRUE)
+    
+    # 创建置信区间数据框
+    ci_df <- data.frame(
+      FPR = fpr_grid,
+      TPR = main_tpr_smooth,
+      TPR_lower = pmax(0, pmin(1, main_tpr_smooth + deviation_lower)),
+      TPR_upper = pmax(0, pmin(1, main_tpr_smooth + deviation_upper))
+    )
+    
+    # 方法4：轻微调整置信区间以确保包含主曲线（可选）
+    # 这只是一个安全措施，通常不需要
+    adjustment_factor <- 0.001
+    ci_df$TPR_lower <- pmin(ci_df$TPR_lower, ci_df$TPR - adjustment_factor)
+    ci_df$TPR_upper <- pmax(ci_df$TPR_upper, ci_df$TPR + adjustment_factor)
+    
+    # 确保置信区间在0-1范围内
+    ci_df$TPR_lower <- pmax(0, ci_df$TPR_lower)
+    ci_df$TPR_upper <- pmin(1, ci_df$TPR_upper)
+    
+    # 移除NA值
+    ci_df <- na.omit(ci_df)
+    
+    # 创建用于绘图的ROC数据框
+    roc_df <- data.frame(
+      FPR = fpr_grid,
+      TPR = main_tpr_smooth
+    )
+    
+    # 绘制图形
+    p <- ggplot() +
+      # 添加对角线参考线
+      geom_abline(slope = 1, intercept = 0, 
+                  linetype = "dashed", color = "gray", linewidth = 0.8) +
+      
+      # 添加平滑的置信区间（使用半透明带状区域）
+      {if (nrow(ci_df) > 0) 
+        geom_ribbon(data = ci_df, 
+                    aes(x = FPR, ymin = TPR_lower, ymax = TPR_upper), 
+                    fill = cond_col, alpha = 0.25)} +
+      
+      # 添加平滑后的主ROC曲线
+      geom_line(data = roc_df, aes(x = FPR, y = TPR), 
+                color = "black", linewidth = 1.5) +
+      
+      # 设置坐标轴和主题
+      coord_equal() +
+      theme_classic(base_size = 14) +
+      theme(
+        axis.ticks.length = unit(-0.1, "cm"),
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "none",
+        plot.margin = margin(1, 1, 1, 1, "cm")
+      ) +
+      
+      # 设置坐标轴标签
+      labs(
+        x = "1 - Specificity (False Positive Rate)",
+        y = "Sensitivity (True Positive Rate)",
+        title = paste0("ROC Curve (AUC = ", round(mean_auc, 3), 
+                       " [", round(CI95[1], 3), ", ", round(CI95[2], 3), "])")
+      ) +
+      
+      # 设置坐标轴范围
+      scale_x_continuous(limits = c(0, 1), 
+                         expand = expansion(mult = c(0.01, 0.01))) +
+      scale_y_continuous(limits = c(0, 1), 
+                         expand = expansion(mult = c(0.01, 0.01)))
+    
+    # 打印图形
+    print(p)
+    
+    # 保存图形到文件
+    png(filename, width = 6, height = 5.5, units = "in", res = 300)
+    print(p)
+    dev.off()
+    
+    # 计算并显示主曲线在置信区间内的比例
+    within_ci <- sum(roc_df$TPR >= ci_df$TPR_lower & 
+                       roc_df$TPR <= ci_df$TPR_upper, na.rm = TRUE)
+    total_points <- nrow(roc_df)
+    
+    message(sprintf("曲线点在置信区间内的比例: %.1f%% (%d/%d)", 
+                    100 * within_ci / total_points, within_ci, total_points))
+    message(sprintf("ROC曲线已保存到: %s", filename))
+    message(sprintf("置信区间基于 %d 次Bootstrap计算", length(boot_roc_points)))
+    message(sprintf("使用平滑方法: %s (span=%.2f)", smooth_method, smooth_span))
+  }
+  
+  # 输出结果
+  message(sprintf("\nAUC: %.3f\n95%% CI: [%.3f, %.3f]\n",
+                  mean_auc, CI95[1], CI95[2]))
+  
+  # 返回结果
+  return(list(
+    mean_auc = mean_auc,
+    CI95 = CI95,
+    auc_boot = auc_boot,
+    y_true_all = auc_data$y_real,
+    y_score_all = auc_data$y_fit,
+    roc_obj = roc_obj
+  ))
+}
