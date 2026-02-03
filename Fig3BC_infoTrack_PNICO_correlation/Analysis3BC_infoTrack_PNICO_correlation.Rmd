@@ -237,11 +237,12 @@ ALB_fig = data.frame(df_org_ALB$detaC_between_TG, model_list[[3]]$fitted.values)
 names(ALB_fig) = c("trueBeta1", "predictedBeta1")
 
 p<-ggplot(ALB_fig, aes(x=trueBeta1, y=predictedBeta1)) +
-  geom_point(color="#DA6F6F", size = 4, alpha = 0.8) +
+  geom_point(color="#946CFF", size = 4) +
   geom_smooth(method=lm , color="#0D0D0D", se=TRUE) +
   theme_classic()
 
 print(p)
+ggsave("ALB_beta1.png", plot = p, width = 6, height = 4, dpi = 300)
 ```
 
 ### AFW_alpha2
@@ -250,9 +251,10 @@ AFW_fig = data.frame(df_org_AFW_alpha2$detaC_within_TG, model_list[[5]]$fitted.v
 names(AFW_fig) = c("trueAlpha2", "predictedAlpha2")
 
 p<-ggplot(AFW_fig, aes(x=trueAlpha2, y=predictedAlpha2)) +
-  geom_point(color="#DA6F6F", size = 4, alpha = 0.5) +
+  geom_point(color="#946CFF", size = 4, alpha = 0.5) +
   geom_smooth(method=lm , color="#0D0D0D", se=TRUE) +
   theme_classic()
 
 print(p)
+ggsave("AFW_alpha2.png", plot = p, width = 6, height = 4, dpi = 300)
 ```

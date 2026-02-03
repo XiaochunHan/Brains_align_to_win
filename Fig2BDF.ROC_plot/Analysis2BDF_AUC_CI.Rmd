@@ -47,12 +47,12 @@ auc_all = auc_boot_cv(data_all_invest,5,"radial",1000,TRUE,'#000000','data_all_i
 
 ### BOLD and FC
 ```{r svm_invest_BOLD&FC}
-auc_bold_fc = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000,TRUE,'#ACACAC','data_BOLD_FC_invest_roc_plot.png')
+auc_bold_fc = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000,TRUE,'#FF9784','data_BOLD_FC_invest_roc_plot.png')
 ```
 
 ### INS and BINS
 ```{r svm_invest_INS&BINS}
-auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000,TRUE,'#AD91C4','data_INS_BINS_invest_roc_plot.png')
+auc_ins_bins = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000,TRUE,'#5BB9E8','data_INS_BINS_invest_roc_plot.png')
 ```
 
 ```{r svm_invest_INS&BINS-1, include=FALSE}

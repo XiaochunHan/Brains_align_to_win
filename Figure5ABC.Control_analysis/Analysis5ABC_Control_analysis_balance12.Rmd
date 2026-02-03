@@ -46,7 +46,7 @@ print(meanACC_inter)
 
 #### AUC
 ```{r auc_INS&BINS}
-auc_inter = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000,TRUE,'#AD91C4','data_INS_BINS_invest_roc_plot_match12.png')
+auc_inter = auc_boot_cv(data_INS_BINS_invest,5,"radial",1000,TRUE,'#5BB9E8','data_INS_BINS_invest_roc_plot_match12.png')
 ```
 
 #### permutation
@@ -71,14 +71,14 @@ acc_low_25 = sort(acc_match_inter_perm$acc_perm)[125]
 acc_top_25 = sort(acc_match_inter_perm$acc_perm)[4875]
 acc_match_inter_perm$ci95 = rep(0,5000)
 acc_match_inter_perm$ci95[(acc_match_inter_perm$acc_perm<acc_low_25|acc_match_inter_perm$acc_perm>acc_top_25)] = 1
-
+meanACC_inter = 0.7397
 p_match_inter_perm = mean(meanACC_inter<acc_match_inter_perm$acc_perm)
 print(p_match_inter_perm)
 
 p <- ggplot(acc_match_inter_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
-    scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = meanACC_inter), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    scale_fill_manual(values = c("white","#5BB9E8"))+
+    geom_vline(aes(xintercept = meanACC_inter), color = "#5BB9E8", linewidth = 3) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ggsave("Match12_perm_INS_BINS.png", plot = p, width = 5, height = 4, dpi = 300)
@@ -101,7 +101,7 @@ print(meanACC_intra)
 
 #### AUC
 ```{r auc_BOLD&FC}
-auc_intra = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000,TRUE,'#AD91C4','data_BOLD_FC_invest_roc_plot_match12.png')
+auc_intra = auc_boot_cv(data_BOLD_FC_invest,5,"radial",1000,TRUE,'#FF9784','data_BOLD_FC_invest_roc_plot_match12.png')
 ```
 
 #### permutation
@@ -127,14 +127,14 @@ acc_low_25 = sort(acc_match_intra_perm$acc_perm)[125]
 acc_top_25 = sort(acc_match_intra_perm$acc_perm)[4875]
 acc_match_intra_perm$ci95 = rep(0,5000)
 acc_match_intra_perm$ci95[(acc_match_intra_perm$acc_perm<acc_low_25|acc_match_intra_perm$acc_perm>acc_top_25)] = 1
-
+meanACC_intra = 0.5567
 p_match_intra_perm = mean(meanACC_intra<acc_match_intra_perm$acc_perm)
 print(p_match_intra_perm)
 
 p <- ggplot(acc_match_intra_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
-    scale_fill_manual(values = c("white","#969796"))+
-    geom_vline(aes(xintercept = meanACC_intra), color = "#969796", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    scale_fill_manual(values = c("white","#FF9784"))+
+    geom_vline(aes(xintercept = meanACC_intra), color = "#FF9784", linewidth = 3) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ggsave("Match12_perm_BOLD_FC.png", plot = p, width = 5, height = 4, dpi = 300)

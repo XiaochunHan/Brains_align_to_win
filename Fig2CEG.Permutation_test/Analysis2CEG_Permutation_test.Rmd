@@ -77,9 +77,11 @@ print(p_all_perm)
 p<-ggplot(acc_all_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
     scale_fill_manual(values = c("white","#000000"))+
-    geom_vline(aes(xintercept = acc_all), color = "#000000", linewidth = 1.5) + theme_classic()+xlim(0,1) + 
+    geom_vline(aes(xintercept = acc_all), color = "#000000", linewidth = 3) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+png('permutation_all.png', width = 5, height = 4, units = "in", res = 300)  # 300DPI高清图片
 print(p)
+dev.off()
 ```
 
 ####  1-session-out
@@ -115,10 +117,12 @@ print(p_wns_bns_perm)
 
 p<-ggplot(acc_wns_bns_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
-    scale_fill_manual(values = c("white","#B095C6"))+
-    geom_vline(aes(xintercept = acc_wns_bns), color = "#B095C6", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    scale_fill_manual(values = c("white","#5BB9E8"))+
+    geom_vline(aes(xintercept = acc_wns_bns), color = "#5BB9E8", linewidth = 3) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+png('permutation_inter-brain.png', width = 5, height = 4, units = "in", res = 300)  # 300DPI高清图片
 print(p)
+dev.off()
 ```
 
 ####  1-session-out
@@ -156,10 +160,12 @@ print(p_bold_fc_perm)
 
 p<-ggplot(acc_bold_fc_perm, aes(x = acc_perm, fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 61) + 
-    scale_fill_manual(values = c("white","#969796"))+
-    geom_vline(aes(xintercept = acc_bold_fc), color = "#969796", linewidth = 2) + theme_classic()+xlim(0,1) + 
+    scale_fill_manual(values = c("white","#FF9784"))+
+    geom_vline(aes(xintercept = acc_bold_fc), color = "#FF9784", linewidth = 3) + theme_classic()+xlim(0,1) + 
     labs(x = "Win-Lose Prediction Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
+png('permutation_intra-brain.png', width = 5, height = 4, units = "in", res = 300)  # 300DPI高清图片
 print(p)
+dev.off()
 ```
 
 ####  1-session-out

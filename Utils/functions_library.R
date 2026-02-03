@@ -1117,7 +1117,7 @@ auc_boot_cv <- function(df,nfold,koi,nBoot,plotROC,cond_col,filename){
     )
     
     p <- ggplot(roc_df, aes(x = FPR, y = TPR)) +
-      geom_line(color = cond_col, linewidth = 1.2) +
+      geom_line(color = cond_col, linewidth = 4) +
       geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
       coord_equal() +
       theme_classic(base_size = 14) +
@@ -1417,7 +1417,7 @@ svm_general_auc <- function(train_df, test_df, nBoot = 1000, plotROC = TRUE, con
     )
     
     p <- ggplot(roc_df, aes(x = FPR, y = TPR)) +
-      geom_line(color = cond_col, linewidth = 1.2) +
+      geom_line(color = cond_col, linewidth = 4) +
       geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
       coord_equal() +
       theme_classic(base_size = 14) +

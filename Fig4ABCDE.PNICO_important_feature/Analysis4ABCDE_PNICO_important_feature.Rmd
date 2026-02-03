@@ -97,7 +97,7 @@ summary_data <- df %>% group_by(feature) %>% summarize(Mean = mean(value), SE = 
 p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
   geom_hline(aes(yintercept = 0), color = "black", linewidth = 0.8, linetype = 1) +
   geom_col(width = 0.6, color = "black") +
-  scale_fill_manual(values = c("#946CFF","#595959"))+
+  scale_fill_manual(values = c("#946CFF","#009000"))+
   geom_jitter(
     data = df,
     aes(y = value, x = feature),
@@ -113,7 +113,7 @@ p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
   )  +
   theme_classic()+
   theme(legend.position = "none")
-png('fi_A_vs_D.png', width = 4, height = 4, units = "in", res = 300)  # 300DPI高清图片
+png('fi_A_vs_D.png', width = 5, height = 4, units = "in", res = 300)  # 300DPI高清图片
 print(p)
 dev.off()
 ```
