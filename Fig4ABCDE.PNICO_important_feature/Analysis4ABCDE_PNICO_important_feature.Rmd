@@ -97,7 +97,7 @@ summary_data <- df %>% group_by(feature) %>% summarize(Mean = mean(value), SE = 
 p<-ggplot(summary_data, aes(x = feature, y = Mean, fill = feature)) +
   geom_hline(aes(yintercept = 0), color = "black", linewidth = 0.8, linetype = 1) +
   geom_col(width = 0.6, color = "black") +
-  scale_fill_manual(values = c("#946CFF","#009000"))+
+  scale_fill_manual(values = c("#946CFF","#00B050"))+
   geom_jitter(
     data = df,
     aes(y = value, x = feature),

@@ -46,7 +46,7 @@ print(p_perm)
 
 p<-ggplot(dataset_pseudo, aes(x = (perm_acc), fill = as.factor(ci95))) +
     geom_histogram(colour = "#4C4C4C", bins = 30) + 
-    scale_fill_manual(values = c("white","#B095C6"))+ theme_classic()+xlim(0,1) +
+    scale_fill_manual(values = c("white","#5BB9E8"))+ theme_classic()+xlim(0,1) +
     labs(x = "Pseudo-pair Accuracy") + theme(text = element_text(size = 15),legend.position="none",axis.ticks.length=unit(-0.1, "cm"))
 print(p)
 ggsave("Pseudo_pair_control_all.png", plot = p, width = 5, height = 4, dpi = 300)
