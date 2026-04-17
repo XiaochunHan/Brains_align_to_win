@@ -1,0 +1,236 @@
+---
+title: "Analysis_Attack_Defend_Variance"
+author: "Xiaochun Han"
+date: "2025-11-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+source("../../utils/functions_library.R")
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","car","readxl"))
+```
+
+## Import data
+```{r impart data}
+setwd('../../Data/Develop')
+wd<-getwd()
+dataset_BINS <- read.csv('BINS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_INS <- read.csv('INS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
+dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
+dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
+
+INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
+
+data_INS_BINS_invest = cbind(INS_mean[,c(1,3:ncol(INS_mean))],BINS_mean[,3:ncol(BINS_mean)])
+```
+## Calculate Inter-feature Variance
+### All feature
+```{r feature variance}
+df_feature_attack = data_INS_BINS_invest[, grepl('_Attack_', colnames(data_INS_BINS_invest))]
+df_feature_defend = data_INS_BINS_invest[, grepl('_Defend_', colnames(data_INS_BINS_invest))]
+
+
+attack_cols <- colnames(df_feature_attack)
+defend_cols <- colnames(df_feature_defend)
+
+# 创建一个函数来提取变量基名（去除_Attack_或_Defend_部分）
+get_base_name <- function(full_name) {
+  # 提取_Attack_或_Defend_之前和之后的部分
+  if (grepl("_Attack_", full_name)) {
+    # 将_Attack_替换为分隔符
+    base_part <- sub("_Attack_", "___", full_name)
+  } else if (grepl("_Defend_", full_name)) {
+    # 将_Defend_替换为分隔符
+    base_part <- sub("_Defend_", "___", full_name)
+  } else {
+    base_part <- full_name
+  }
+  return(base_part)
+}
+
+# 提取所有变量基名
+attack_base_names <- sapply(attack_cols, get_base_name)
+defend_base_names <- sapply(defend_cols, get_base_name)
+
+# 检查基名是否完全匹配
+common_base_names <- intersect(attack_base_names, defend_base_names)
+cat("找到", length(common_base_names), "个匹配的变量对\n")
+
+# 创建结果数据框
+results <- data.frame(
+  Variable = character(),
+  Attack_Var_Name = character(),
+  Defend_Var_Name = character(),
+  Attack_Var_Mean = numeric(),
+  Defend_Var_Mean = numeric(),
+  Attack_Var_SD = numeric(),
+  Defend_Var_SD = numeric(),
+  Levene_F = numeric(),
+  Levene_p = numeric(),
+  Significant = character(),
+  stringsAsFactors = FALSE
+)
+
+# 设置显著性水平
+alpha <- 0.05
+p_values <- c()
+for (base_name in common_base_names) {
+  # 找到对应的完整变量名
+  attack_var_name <- attack_cols[attack_base_names == base_name]
+  defend_var_name <- defend_cols[defend_base_names == base_name]
+  
+  # 提取数据
+  attack_data <- df_feature_attack[[attack_var_name]]
+  defend_data <- df_feature_defend[[defend_var_name]]
+  
+  # 创建长格式数据
+  data_long <- data.frame(
+    value = c(attack_data, defend_data),
+    group = factor(rep(c("Attack", "Defend"), 
+                       c(length(attack_data), length(defend_data))))
+  )
+  
+  # 进行Levene检验
+  tryCatch({
+    levene_result <- leveneTest(value ~ group, data = data_long)
+    
+    # 计算描述性统计
+    attack_mean <- mean(attack_data, na.rm = TRUE)
+    defend_mean <- mean(defend_data, na.rm = TRUE)
+    attack_sd <- sd(attack_data, na.rm = TRUE)
+    defend_sd <- sd(defend_data, na.rm = TRUE)
+    
+    # 提取Levene检验结果
+    levene_f <- levene_result$`F value`[1]
+    levene_p <- levene_result$`Pr(>F)`[1]
+    
+    # 存储p值用于FDR校正
+    p_values <- c(p_values, levene_p)
+    
+    # 判断是否显著（原始p值）
+    significant <- ifelse(levene_p < alpha, "Yes", "No")
+    
+    # 添加到结果数据框（FDR校正后的p值会在后面添加）
+    results <- rbind(results, data.frame(
+      Variable = base_name,
+      Attack_Var_Name = attack_var_name,
+      Defend_Var_Name = defend_var_name,
+      Attack_Var_Mean = attack_mean,
+      Defend_Var_Mean = defend_mean,
+      Attack_Var_SD = attack_sd,
+      Defend_Var_SD = defend_sd,
+      Levene_F = levene_f,
+      Levene_p = levene_p,
+      Levene_p_FDR = NA,  # 先设为NA，后面统一计算
+      Significant = significant,
+      Significant_FDR = NA,  # 先设为NA
+      stringsAsFactors = FALSE
+    ))
+    
+  }, error = function(e) {
+    cat("错误处理变量:", base_name, "-", conditionMessage(e), "\n")
+  })
+}
+
+# 计算FDR校正后的p值
+if (nrow(results) > 0) {
+  # 对Levene检验的p值进行FDR校正
+  levene_p_fdr <- p.adjust(results$Levene_p, method = "fdr")
+  results$Levene_p_FDR <- levene_p_fdr
+  
+  # 根据FDR校正后的p值判断显著性
+  results$Significant_FDR <- ifelse(results$Levene_p_FDR < alpha, "Yes", "No")
+}
+
+# 查看结果
+cat("\nLevene检验结果汇总:\n")
+print(results)
+```
+## reorg data
+```{r reorg data}
+tr <- read_excel('Info_track_coef_JYadded_var.xlsx',sheet="raw_data")
+groupSuccess = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),
+                                   c("groupSuccess")]
+Var_Attack = tr[((tr$roleA1D2 == 1)&(tr$leadL1F2==1)),
+                                   c("Variance")]
+Var_Defend = tr[((tr$roleA1D2 == 2)&(tr$leadL1F2==1)),
+                                   c("Variance")]
+
+
+names(Var_Attack) = c("A_Variance")
+names(Var_Defend) = c("D_Variance")
+
+df_org_Var = cbind(groupSuccess,Var_Attack,Var_Defend)
+df_org_Var_Attack = cbind(groupSuccess,Var_Attack)
+df_org_Var_Defend = cbind(groupSuccess,Var_Defend)
+```
+
+## Regression
+```{r Regress_analysis}
+model_list <- list(
+model_all <- lm(groupSuccess ~ ., data = df_org_Var),
+model_attack <- lm(groupSuccess ~ ., data = df_org_Var_Attack),
+model_defend <- lm(groupSuccess ~ ., data = df_org_Var_Defend)
+)
+
+R2 <- data.frame(
+  Model_Name = c("model_all","model_attack","model_defend"),
+  R_squared = numeric(length(model_list)),
+  stringsAsFactors = FALSE
+)
+
+for (i in seq_along(model_list)) {
+  model_summary <- summary(model_list[[i]])
+  R2$R_squared[i] <- model_summary$r.squared
+}
+
+print(R2)
+```
+
+## Regression cross-validation
+```{r cross_valid}
+cv_list <- list(
+cv_all = lm_cv_correlation(df_org_Var,5,100,'r_value')
+)
+
+Rvalue <- data.frame(
+  r_values = sapply(cv_list, function(x) x),
+  stringsAsFactors = FALSE
+)
+
+print(Rvalue)
+```
+
+## Permutation cross-validation
+```{r permutation, eval=FALSE}
+#Attacker-leader
+perm_all = lm_perm(df_org_Var,5,5000,'r_value')
+```
+
+### Permutation save
+```{r perm_save, eval=FALSE}
+saveRDS(perm_all, "lm_perm_all_5000_r.RData")
+```
+
+### Permutation read
+```{r perm_read}
+perm_all = readRDS("lm_perm_all_5000_r.RData")
+```
+
+### Permutation p value
+```{r Summary_R2}
+p_perm_list <- list(
+  p_perm_all = mean(cv_list$cv_all<perm_all$lm_perm)
+)
+
+p_perm <- data.frame(
+  p_values = sapply(p_perm_list, function(x) x),
+  stringsAsFactors = FALSE
+)
+
+print(p_perm)
+```

@@ -1,0 +1,22 @@
+weight = readRDS("/Users/xiaochunhan/Documents/Research/Projects/Brains_align_to_win/Fig4ABCDE.PNICO_important_feature/svm_win_WNS_BNS_lime_separate_2bin_yes_14_none.RData")
+name = weight$feature
+new_names <- gsub("WNS_", "WNC_", name)
+new_names <- gsub("BNS_", "BNC_", new_names)
+new_names <- gsub("_rTPJ_CH01", "_rTPJ_CH12", new_names)
+new_names <- gsub("_rDLPFC_CH02", "_rDLPFC_CH03", new_names)
+new_names <- gsub("_rTPJ_CH09", "_rTPJ_CH08", new_names)
+new_names <- gsub("_rTPJ_CH03", "_rTPJ_CH09", new_names)
+new_names <- gsub("_rTPJ_CH04", "_rTPJ_CH14", new_names)
+new_names <- gsub("_rDLPFC_CH06", "_rDLPFC_CH01", new_names)
+new_names <- gsub("_rDLPFC_CH05", "_rDLPFC_CH06", new_names)
+new_names <- gsub("_rTPJ_CH07", "_rTPJ_CH11", new_names)
+new_names <- gsub("_rDLPFC_CH08", "_rDLPFC_CH04", new_names)
+new_names <- gsub("_rTPJ_CH10", "_tempholder", new_names)
+new_names <- gsub("_rDLPFC_CH11", "_rDLPFC_CH07", new_names)
+new_names <- gsub("_rDLPFC_CH12", "_rDLPFC_CH02", new_names)
+new_names <- gsub("_rTPJ_CH13", "_rTPJ_CH10", new_names)
+new_names <- gsub("_tempholder", "_rTPJ_CH13", new_names)
+new_names <- gsub("_rDLPFC_CH14", "_rDLPFC_CH05", new_names)
+
+weight$feature = new_names
+saveRDS(weight, "/Users/xiaochunhan/Documents/Research/Projects/Forcast_group_success/Fig4_feature_importance/svm_win_WNC_BNC_lime.RData")
