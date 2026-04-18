@@ -151,9 +151,23 @@ reorg_df <- function(df_feature,feature){
       
     }else if((colnames(df_feature_var)[c] == "lead(L/LF=1)")|(colnames(df_feature_var)[c] == "lead.L.LF.1.")){
       colnames(df_feature_var)[c] = "LeadL1"
-      df_feature_var$LeadL1 = gsub('1','L',df_feature_var$LeadL1)
-      df_feature_var$LeadL1 = gsub('0','F',df_feature_var$LeadL1)
-      df_feature_var$LeadL1 = factor(df_feature_var$LeadL1, levels = c("L","F"))
+      unique_values <- unique(df_feature_var$LeadL1)
+      
+      if (all(unique_values %in% c(0, 1))) {
+        # 只有1和0的情况
+        df_feature_var$LeadL1 = gsub('1','L',df_feature_var$LeadL1)
+        df_feature_var$LeadL1 = gsub('0','F',df_feature_var$LeadL1)
+        df_feature_var$LeadL1 = factor(df_feature_var$LeadL1, levels = c("L","F"))
+      } else if (all(unique_values %in% c(1, 2, 3))) {
+        # 有1,2,3的情况
+        df_feature_var$LeadL1 = gsub('1','L',df_feature_var$LeadL1)
+        df_feature_var$LeadL1 = gsub('2','F1',df_feature_var$LeadL1)
+        df_feature_var$LeadL1 = gsub('3','F2',df_feature_var$LeadL1)
+        df_feature_var$LeadL1 = factor(df_feature_var$LeadL1, levels = c("L","F1","F2"))
+      } else {
+        # 其他情况，保持原样
+        warning(paste("Unexpected values in LeadL1:", paste(unique_values, collapse=", ")))
+      }
       
     }else if((colnames(df_feature_var)[c] == "CH/CH_pair")|(colnames(df_feature_var)[c] == "CH.CH_pair")){
       colnames(df_feature_var)[c] = "CH"
