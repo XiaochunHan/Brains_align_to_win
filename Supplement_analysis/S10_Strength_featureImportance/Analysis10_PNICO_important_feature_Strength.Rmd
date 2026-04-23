@@ -1,0 +1,61 @@
+---
+title: "Analysis4ABCDE_PNICO_importance_feature.Rmd"
+author: "Xiaochun Han"
+date: "2025-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+rm(list = ls())
+source("../../utils/functions_library.R")
+load_packages(c("dplyr", "caret", "e1071","ggplot2", "pROC", "reshape2", "rstatix","kableExtra","lime","ggbeeswarm"))
+```
+
+## Import data
+```{r impart_data,eval=FALSE}
+setwd('../../Data/Develop')
+wd<-getwd()
+dataset_BNS <- read.csv('BINS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_WNS <- read.csv('INS_single_trial_invest.csv',header=TRUE,sep=",")
+dataset_y <- read.csv('win_lose_and_pay_single_trial.csv',header=TRUE,sep=",")
+dataset_y_attack <- dataset_y[dataset_y$role.A.1. == 1,]
+dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted due to the absent of winning trial(4,22) and brain signal(14). 
+
+WNS_mean = extract_win_or_pay_mean(dataset_WNS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
+BNS_mean = extract_win_or_pay_mean(dataset_BNS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
+data_WNS_BNS_invest = cbind(WNS_mean[,c(1,3:ncol(WNS_mean))],BNS_mean[,3:ncol(BNS_mean)])
+
+means_good1 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 1, -1], na.rm = TRUE)
+means_good0 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 0, -1], na.rm = TRUE)
+differences <- means_good1 - means_good0
+sorted_differences <- sort(differences, decreasing = TRUE)
+sorted_diff_names <- names(sorted_differences)
+rank_diff <- 1:length(sorted_diff_names)
+```
+
+
+### Feature importance read
+```{r read_feat_impor}
+fi_fs_invest = readRDS("fi_all_invest_WNS_BNS_5000.RData")
+acc_ins_bins = 0.9212
+dec_acc = vector(length = 112)
+for (v in 1:length(fi_fs_invest)){
+  dec_acc[v] = (acc_ins_bins - mean(fi_fs_invest[[v]][[2]]$acc_perm))*100
+}
+
+fi_all <- data.frame(
+  name = names(fi_fs_invest),
+  fi_value_percent = dec_acc)
+
+fi_all_sorted <- fi_all[order(fi_all$fi_value_percent, decreasing = TRUE), ]
+fi_sorted_names <- fi_all_sorted$name
+rank_fi <- match(sorted_diff_names, fi_sorted_names)
+
+spearman_test <- cor.test(rank_diff, rank_fi, 
+                          method = "spearman", 
+                          exact = FALSE)  # 对于n>50，exact=FALSE
+cat("\n=== Spearman等级相关性分析 ===\n")
+cat("Spearman相关系数 (rho):", round(spearman_test$estimate, 4), "\n")
+cat("P值:", format.pval(spearman_test$p.value, digits = 4), "\n")
+```

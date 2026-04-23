@@ -26,6 +26,27 @@ INS_mean = extract_win_or_pay_mean(dataset_INS,dataset_y_attack,"WNS_","win",FAL
 BINS_mean = extract_win_or_pay_mean(dataset_BINS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 
 data_INS_BINS_invest = cbind(INS_mean[,c(1,3:ncol(INS_mean))],BINS_mean[,3:ncol(BINS_mean)])
+
+name = names(data_INS_BINS_invest)
+new_names <- gsub("WNS_", "WNC_", name)
+new_names <- gsub("BNS_", "BNC_", new_names)
+new_names <- gsub("_rTPJ_CH01", "_rTPJ_CH12", new_names)
+new_names <- gsub("_rDLPFC_CH02", "_rDLPFC_CH03", new_names)
+new_names <- gsub("_rTPJ_CH09", "_rTPJ_CH08", new_names)
+new_names <- gsub("_rTPJ_CH03", "_rTPJ_CH09", new_names)
+new_names <- gsub("_rTPJ_CH04", "_rTPJ_CH14", new_names)
+new_names <- gsub("_rDLPFC_CH06", "_rDLPFC_CH01", new_names)
+new_names <- gsub("_rDLPFC_CH05", "_rDLPFC_CH06", new_names)
+new_names <- gsub("_rTPJ_CH07", "_rTPJ_CH11", new_names)
+new_names <- gsub("_rDLPFC_CH08", "_rDLPFC_CH04", new_names)
+new_names <- gsub("_rTPJ_CH10", "_tempholder", new_names)
+new_names <- gsub("_rDLPFC_CH11", "_rDLPFC_CH07", new_names)
+new_names <- gsub("_rDLPFC_CH12", "_rDLPFC_CH02", new_names)
+new_names <- gsub("_rTPJ_CH13", "_rTPJ_CH10", new_names)
+new_names <- gsub("_tempholder", "_rTPJ_CH13", new_names)
+new_names <- gsub("_rDLPFC_CH14", "_rDLPFC_CH05", new_names)
+
+names(data_INS_BINS_invest) = new_names
 ```
 ## Calculate Inter-feature Variance
 ### All feature
@@ -150,6 +171,60 @@ if (nrow(results) > 0) {
 cat("\nLevene检验结果汇总:\n")
 print(results)
 ```
+### Figures
+```{r feature variance}
+# Calculate variance ratios
+results$Variance_Ratio <- (results$Attack_Var_SD^2) / (results$Defend_Var_SD^2)
+
+# Replace "___" with "_" in variable base names for better display
+results$Variable_Display <- gsub("___", "_", results$Variable)
+
+# Sort variables by variance ratio
+results <- results[order(results$Variance_Ratio, decreasing = TRUE), ]
+results$Variable_Display <- factor(results$Variable_Display, 
+                                   levels = results$Variable_Display)
+
+# View results
+cat("\nLevene's Test Results Summary:\n")
+print(results)
+
+# Create simplified variance ratio plot
+p_simple <- ggplot(results, aes(x = Variable_Display, y = Variance_Ratio)) +
+  geom_bar(stat = "identity", width = 0.7, fill = "#2E86C1", alpha = 0.8) +
+  # Add red reference line at variance ratio = 1
+  geom_hline(yintercept = 1, linetype = "solid", color = "red", linewidth = 1) +
+  # Simple labels
+  labs(
+    x = "",
+    y = "Variance Ratio (Attack/Defend)"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 10),
+    legend.position = "none",
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
+    plot.caption = element_blank(),
+    plot.margin = unit(c(5, 5, 5, 5), "pt")
+  )
+
+# Save the plot
+ggsave("variance_ratio_simple.png", plot = p_simple, 
+       width = 10, height = 5, 
+       dpi = 300, bg = "white")
+cat("\nSimple variance ratio plot saved to 'variance_ratio_simple.png'\n")
+
+# Display the plot
+print(p_simple)
+```
+
+
 ## reorg data
 ```{r reorg data}
 tr <- read_excel('Info_track_coef_JYadded_var.xlsx',sheet="raw_data")
