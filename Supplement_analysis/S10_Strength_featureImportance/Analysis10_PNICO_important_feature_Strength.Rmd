@@ -25,15 +25,7 @@ dataset_y_attack <- dataset_y_attack[-c(4,14,22),] # Three sessions are deleted 
 WNS_mean = extract_win_or_pay_mean(dataset_WNS,dataset_y_attack,"WNS_","win",FALSE,FALSE)
 BNS_mean = extract_win_or_pay_mean(dataset_BNS,dataset_y_attack,"BNS_","win",FALSE,FALSE)
 data_WNS_BNS_invest = cbind(WNS_mean[,c(1,3:ncol(WNS_mean))],BNS_mean[,3:ncol(BNS_mean)])
-
-means_good1 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 1, -1], na.rm = TRUE)
-means_good0 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 0, -1], na.rm = TRUE)
-differences <- means_good1 - means_good0
-sorted_differences <- sort(differences, decreasing = TRUE)
-sorted_diff_names <- names(sorted_differences)
-rank_diff <- 1:length(sorted_diff_names)
 ```
-
 
 ### Feature importance read
 ```{r read_feat_impor}
@@ -49,10 +41,59 @@ fi_all <- data.frame(
   fi_value_percent = dec_acc)
 
 fi_all_sorted <- fi_all[order(fi_all$fi_value_percent, decreasing = TRUE), ]
+```
+
+
+### All feature correlation
+```{r read_feat_impor}
+means_good1 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 1, -1], na.rm = TRUE)
+means_good0 <- colMeans(data_WNS_BNS_invest[data_WNS_BNS_invest$good_1 == 0, -1], na.rm = TRUE)
+differences <- means_good1 - means_good0
+sorted_differences <- sort(differences, decreasing = TRUE)
+sorted_diff_names <- names(sorted_differences)
+rank_diff <- 1:length(sorted_diff_names)
 fi_sorted_names <- fi_all_sorted$name
 rank_fi <- match(sorted_diff_names, fi_sorted_names)
 
 spearman_test <- cor.test(rank_diff, rank_fi, 
+                          method = "spearman", 
+                          exact = FALSE)  # 对于n>50，exact=FALSE
+cat("\n=== Spearman等级相关性分析 ===\n")
+cat("Spearman相关系数 (rho):", round(spearman_test$estimate, 4), "\n")
+cat("P值:", format.pval(spearman_test$p.value, digits = 4), "\n")
+```
+
+### Attacker correlation
+```{r read_feat_impor}
+sorted_diff_names_attack <- sorted_diff_names[grep("_Attack_", sorted_diff_names)]
+fi_sorted_names_attack <- fi_sorted_names[grep("_Attack_", fi_sorted_names)]
+
+common_attack_vars <- intersect(sorted_diff_names_attack, fi_sorted_names_attack)
+cat("共同包含的变量数量:", length(common_attack_vars), "\n")
+
+rank_diff_attack <- 1:length(sorted_diff_names_attack)
+rank_fi_attack <- match(sorted_diff_names_attack, fi_sorted_names_attack)
+
+spearman_test <- cor.test(rank_diff_attack, rank_fi_attack, 
+                          method = "spearman", 
+                          exact = FALSE)  # 对于n>50，exact=FALSE
+cat("\n=== Spearman等级相关性分析 ===\n")
+cat("Spearman相关系数 (rho):", round(spearman_test$estimate, 4), "\n")
+cat("P值:", format.pval(spearman_test$p.value, digits = 4), "\n")
+```
+
+### Defender correlation
+```{r read_feat_impor}
+sorted_diff_names_defend <- sorted_diff_names[grep("_Defend_", sorted_diff_names)]
+fi_sorted_names_defend <- fi_sorted_names[grep("_Defend_", fi_sorted_names)]
+
+common_defend_vars <- intersect(sorted_diff_names_defend, fi_sorted_names_defend)
+cat("共同包含的变量数量:", length(common_defend_vars), "\n")
+
+rank_diff_defend <- 1:length(sorted_diff_names_defend)
+rank_fi_defend <- match(sorted_diff_names_defend, fi_sorted_names_defend)
+
+spearman_test <- cor.test(rank_diff_defend, rank_fi_defend, 
                           method = "spearman", 
                           exact = FALSE)  # 对于n>50，exact=FALSE
 cat("\n=== Spearman等级相关性分析 ===\n")
